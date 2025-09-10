@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using OpenTK.Graphics.Egl;
 using OpenTK.Mathematics;
 using VoxelGame.Networking;
@@ -17,6 +18,8 @@ class Game
     static void Main(string[] args)
     {
         Config.StartTime = Stopwatch.StartNew();
+
+        ThreadPool.SetMaxThreads(100, 100);
 
         // Dictionary<Vector2i, Chunk> stuff = new();
         // Stopwatch sw = Stopwatch.StartNew();

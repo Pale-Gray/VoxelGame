@@ -2,6 +2,9 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
 using System.Threading;
 using OpenTK.Graphics.Vulkan;
 using OpenTK.Mathematics;
@@ -16,9 +19,12 @@ public class WorldGenerator
     public bool ShouldMesh = false;
     private bool _shouldRun = true;
 
-    public ConcurrentQueue<Vector2i> HighPriorityGenerationQueue = new();
-    public ConcurrentQueue<Vector2i> LowPriorityGenerationQueue = new();
+    public ConcurrentQueue<Vector3i> GeneratorQueue = new();
+    
+    public ConcurrentQueue<Vector2i> GenerationQueue = new();
+    public ConcurrentQueue<Vector2i> MeshQueue = new();
     public ConcurrentQueue<Vector2i> UploadQueue = new();
+    public PriorityQueue<Vector2i, int> UploadQueuePriority = new();
     
     public WorldGenerator(World world, bool shouldMesh = true)
     {
@@ -30,7 +36,8 @@ public class WorldGenerator
     {
         for (int i = 0; i < 4; i++)
         {
-            _generatorThreads.Add(new Thread(HandleGenerationQueue) { IsBackground = true });
+            _generatorThreads.Add(new Thread(HandleQueues) { IsBackground = true });
+            _generatorThreads[i].Name = "Generation Thread";
             _generatorThreads[i].Start();
         }
         
@@ -50,85 +57,64 @@ public class WorldGenerator
 
     public void Poll()
     {
-        if (LowPriorityGenerationQueue.Count > 0 || HighPriorityGenerationQueue.Count > 0) _generatorResetEvent.Set();
+        // if (GenerationQueue.Count > 0 || MeshQueue.Count > 0) _generatorResetEvent.Set();
+        if (GeneratorQueue.Count > 0) _generatorResetEvent.Set();
         
         while (UploadQueue.TryDequeue(out Vector2i position))
         {
-            Monitor.Enter(_world.Chunks[position]);
+            // if (UploadQueue.Contains(position)) continue;
+            
+            // Monitor.Enter(_world.Chunks[position]);
             // _world.Chunks[position].Mutex.WaitOne();
-            if (_world.Chunks[position].Status == ChunkStatus.Upload) UploadMesh(_world.Chunks[position]);
+            UploadMesh(_world.Chunks[position]);
             // _world.Chunks[position].Mutex.ReleaseMutex();
-            Monitor.Exit(_world.Chunks[position]);
+            // Monitor.Exit(_world.Chunks[position]);
         }
     }
 
-    private void HandleGenerationQueue()
+    private void HandleQueues()
     {
         Stopwatch sw = new Stopwatch();
+        int i = 0;
         
         while (_shouldRun)
         {
             _generatorResetEvent.WaitOne();
-            while (HighPriorityGenerationQueue.TryDequeue(out Vector2i position) || LowPriorityGenerationQueue.TryDequeue(out position))
-            {
-                Chunk column = _world.Chunks[position];
-                // column.Mutex.WaitOne();
-                Monitor.Enter(column);
-                switch (column.Status)
-                {
-                    case ChunkStatus.Empty:
-                        sw.Start();
-                        GenerateColumn(column);
-                        sw.Stop();
-                        Config.LastGenTime = sw.Elapsed;
-                        Config.GenTimes.Add(Config.LastGenTime);
-                        sw.Reset();
-                        break;
-                    case ChunkStatus.Mesh:
-                        if (ShouldMesh)
-                        {
-                            // if (!column.IsMeshIncomplete)
-                            // {
-                            //     for (int x = -1; x <= 1; x++)
-                            //     {
-                            //         for (int z = -1; z <= 1; z++)
-                            //         {
-                            //             if (x == 0 && z == 0) continue;
-                            //             if (_world.Chunks.TryGetValue(position + (x, z), out Chunk chunk) && chunk.IsMeshIncomplete)
-                            //             {
-                            //                 // chunk.Mutex.WaitOne();
-                            //                 Monitor.Enter(chunk);
-                            //                 for (int i = 0; i < Config.ColumnSize; i++) chunk.ChunkMeshes[i].ShouldUpdate = true;
-                            //                 chunk.Status = ChunkStatus.Mesh;
-                            //                 LowPriorityGenerationQueue.Enqueue(position + (x, z));
-                            //                 // GenerateMesh(_world, chunk);
-                            //                 // chunk.Mutex.ReleaseMutex();
-                            //                 Monitor.Exit(chunk);
-                            //                 // for (int i = 0; i < Config.ColumnSize; i++) chunk.ChunkMeshes[i].ShouldUpdate = true;
-                            //                 // chunk.Status = ChunkStatus.Mesh;
-                            //                 // LowPriorityGenerationQueue.Enqueue(position + (x, z));
-                            //             }
-                            //         }
-                            //     }
-                            // }
+            Vector2i position;
+            Chunk chunk;
 
-                            if (column.IsMeshIncomplete) column.IsMeshIncomplete = false;
-                            if (!HasAllNeighbors(position)) column.IsMeshIncomplete = true;
-                            sw.Start();
-                            GenerateMesh(_world, column);
-                            sw.Stop();
-                            Config.LastMeshTime = sw.Elapsed;
-                            Config.MeshTimes.Add(Config.LastMeshTime);
-                            sw.Reset();
-                        }
-                        else
-                        {
-                            column.Status = ChunkStatus.Done;
-                        }
-                        break;
-                }
-                // column.Mutex.ReleaseMutex();
-                Monitor.Exit(column);
+            i = 0;
+            if (GenerationQueue.TryDequeue(out position) && !GenerationQueue.Contains(position) && Config.World.Chunks.TryGetValue(position, out chunk))
+            {
+                i++;
+                Monitor.Enter(chunk);
+                
+                sw.Restart();
+                GenerateColumn(chunk);
+                chunk.Status = ChunkStatus.Mesh;
+                sw.Stop();
+
+                Config.LastGenTime = sw.Elapsed;
+                Config.GenTimes.Add(sw.Elapsed);
+                
+                Monitor.Exit(chunk);
+            }
+
+            i = 0;
+            if (MeshQueue.TryDequeue(out position) && !MeshQueue.Contains(position) && Config.World.Chunks.TryGetValue(position, out chunk))
+            {
+                i++;
+                Monitor.Enter(chunk);
+                
+                sw.Restart();
+                // GenerateMesh(Config.World, chunk);
+                chunk.Status = ChunkStatus.Upload;
+                sw.Stop();
+                
+                // Config.LastMeshTime = sw.Elapsed;
+                // Config.MeshTimes.Add(sw.Elapsed);
+                
+                Monitor.Exit(chunk);
             }
         }
     }
@@ -164,8 +150,10 @@ public class WorldGenerator
         return true;
     }
     
-    public void GenerateColumn(Chunk column)
+    public void GenerateColumn(object? obj)
     {
+        Chunk column = obj as Chunk;
+        
         float seaLevel = 256.0f;
         float maxAscent = 64.0f;
 
@@ -236,8 +224,10 @@ public class WorldGenerator
         }
 
         column.Status = ChunkStatus.Mesh;
-        if (column.HasPriority) HighPriorityGenerationQueue.Enqueue(column.Position);
-        else LowPriorityGenerationQueue.Enqueue(column.Position);
+        column.IsUpdating = false;
+        // column.Status = ChunkStatus.Mesh;
+        // if (column.HasPriority) HighPriorityGenerationQueue.Enqueue(column.Position);
+        // else LowPriorityGenerationQueue.Enqueue(column.Position);
     }
 
     float Remap(float a, float v1, float v2)
@@ -245,8 +235,12 @@ public class WorldGenerator
         return (a - v1) * (1.0f / (v2 - v1));
     }
     
-    public void GenerateMesh(World world, Chunk column)
+    public void GenerateMesh(object? args)
     {
+        object[] arguments = args as object[];
+        World world = arguments[0] as World;
+        Chunk column = arguments[1] as Chunk;
+        
         for (int i = 0; i < Config.ColumnSize; i++)
         {
             ChunkSectionMesh mesh = column.ChunkMeshes[i];
@@ -256,6 +250,7 @@ public class WorldGenerator
             mesh.TransparentVertices.Clear();
             mesh.TransparentIndices.Clear();
             
+            Stopwatch sw = Stopwatch.StartNew();
             for (int x = 0; x < Config.ChunkSize; x++)
             {
                 for (int y = 0; y < Config.ChunkSize; y++)
@@ -281,9 +276,13 @@ public class WorldGenerator
             {
                 mesh.TransparentIndices.AddRange(0 + m, 1 + m, 2 + m, 2 + m, 3 + m, 0 + m);
             }
+            sw.Stop();
+            Config.LastMeshTime = sw.Elapsed;
+            Config.MeshTimes.Add(sw.Elapsed);
         }
         
         column.Status = ChunkStatus.Upload;
+        column.IsUpdating = false;
         UploadQueue.Enqueue(column.Position);
     }
     
@@ -304,8 +303,6 @@ public class WorldGenerator
         _world.Chunks[position].Mutex.WaitOne();
         _world.Chunks[position].HasPriority = hasPriority;
         _world.Chunks[position].Status = chunkStatus;
-        if (hasPriority) HighPriorityGenerationQueue.Enqueue(position);
-        else LowPriorityGenerationQueue.Enqueue(position);
         _world.Chunks[position].Mutex.ReleaseMutex();
     }
 }

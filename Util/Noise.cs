@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using OpenTK.Mathematics;
 
@@ -31,6 +33,8 @@ public class Noise
         
         return result;
     }
+
+    private static Dictionary<Vector3i, uint> _cache = new();
     
     public static uint Random3(int seed, Vector3i position)
     {
@@ -60,7 +64,8 @@ public class Noise
         result ^= result << 7;
         result ^= result << 3;
         // result ^= result << 11;
-        
+
+        // _cache.TryAdd(position, result);
         return result;
     }
 

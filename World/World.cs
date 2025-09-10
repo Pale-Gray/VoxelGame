@@ -9,7 +9,7 @@ namespace VoxelGame;
 
 public class World
 {
-    public ConcurrentDictionary<Vector2i, Chunk> Chunks = new();
+    public Dictionary<Vector2i, Chunk> Chunks = new();
     public WorldGenerator Generator;
 
     public World()
@@ -111,7 +111,8 @@ public class World
                     }
                 }
 
-                Generator.EnqueueChunk(chunkPosition.Xz, ChunkStatus.Mesh, true);
+                chunk.Status = ChunkStatus.Mesh;
+                // Generator.EnqueueChunk(chunkPosition.Xz, ChunkStatus.Mesh, true);
             }
         }
         
@@ -131,7 +132,9 @@ public class World
                             }
                         }
 
-                        Generator.EnqueueChunk(chunkPosition.Xz + (x, z), ChunkStatus.Mesh, false);
+                        chunk.Status = ChunkStatus.Mesh;
+
+                        // Generator.EnqueueChunk(chunkPosition.Xz + (x, z), ChunkStatus.Mesh, false);
                     }
                 }
             }

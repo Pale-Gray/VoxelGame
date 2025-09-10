@@ -21,6 +21,7 @@ public class Chunk
     public Mutex Mutex = new Mutex();
     public float ElapsedTime = 0.0f;
     public bool HasPriority = true;
+    public bool IsUpdating = false;
     public Chunk(Vector2i position)
     {
         Position = position;

@@ -9,8 +9,9 @@ namespace VoxelGame;
 public class Player : Entity
 {
     public string Name;
-    public HashSet<Vector2i> ChunksToLoad = new();
+    public HashSet<Vector2i> VisitedChunks = new();
     public Queue<Vector2i> LoadQueue = new();
+    public PriorityQueue<Vector2i, float> LoadingQueue = new();
     public MoveableCamera Camera;
     public float Speed = 100.0f;
     public Vector2i? ChunkPosition = null;

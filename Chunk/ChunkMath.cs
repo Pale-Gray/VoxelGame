@@ -10,6 +10,11 @@ public class ChunkMath
         return int.Max(int.Abs(b.X - a.X), int.Abs(b.Y - a.Y));
     }
 
+    public static int ManhattanDistance(Vector2i a, Vector2i b)
+    {
+        return int.Abs(a.X - b.X) + int.Abs(a.Y - b.Y);
+    }
+
     public static Vector3i PositionToBlockPosition(Vector3 position)
     {
         return ((int) Math.Floor(position.X), (int) Math.Floor(position.Y), (int) Math.Floor(position.Z));

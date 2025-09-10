@@ -181,7 +181,7 @@ public class Client : Networked
                     if (Config.World.Chunks.TryAdd(chunkData.Position, chunkData.Column))
                     {
                         Config.World.Chunks[chunkData.Position].Status = ChunkStatus.Mesh;
-                        Config.World.Generator.LowPriorityGenerationQueue.Enqueue(chunkData.Position);
+                        Config.World.Generator.GenerationQueue.Enqueue(chunkData.Position);
                     }
                     break;
                 case PacketType.BlockDestroy:
@@ -243,6 +243,8 @@ public class Client : Networked
 
         if (Input.IsKeyPressed(Key.R))
         {
+            // Config.Server.ConnectedPlayers.First().Value.VisitedChunks.Clear();
+            // Config.Server.ConnectedPlayers.First().Value.LoadQueue.Enqueue(Config.Server.ConnectedPlayers.First().Value.ChunkPosition.Value);
             foreach (Vector2i position in Config.World.Chunks.Keys)
             {
                 Chunk chunk = Config.World.Chunks[position];
@@ -254,10 +256,17 @@ public class Client : Networked
                     mesh.SolidVerticesLength = 0;
                     mesh.SolidIndices.Clear();
                     mesh.SolidVertices.Clear();
+                    
+                    mesh.TransparentIndicesLength = 0;
+                    mesh.TransparentVerticesLength = 0;
+                    mesh.TransparentIndices.Clear();
+                    mesh.TransparentVertices.Clear();
                     mesh.ShouldUpdate = true;
                 }
-                
-                Config.World.Generator.EnqueueChunk(position, ChunkStatus.Mesh, false);
+
+                chunk.Status = ChunkStatus.Mesh;
+
+                // Config.World.Generator.EnqueueChunk(position, ChunkStatus.Mesh, false);
             }
         }
 
