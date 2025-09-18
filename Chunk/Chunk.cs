@@ -1,5 +1,6 @@
 using System.Threading;
 using OpenTK.Mathematics;
+using VoxelGame.Util;
 
 namespace VoxelGame;
 
@@ -14,6 +15,7 @@ public enum ChunkStatus
 public class Chunk
 {
     public ChunkSection[] ChunkSections = new ChunkSection[Config.ColumnSize];
+    public Palette<string> Data = new Palette<string>(Config.ChunkSize * (Config.ChunkSize * Config.ColumnSize) * Config.ChunkSize);
     public ChunkSectionMesh[] ChunkMeshes = new ChunkSectionMesh[Config.ColumnSize];
     public Vector2i Position;
     public ChunkStatus Status = ChunkStatus.Empty;

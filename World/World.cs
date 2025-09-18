@@ -9,7 +9,7 @@ namespace VoxelGame;
 
 public class World
 {
-    public Dictionary<Vector2i, Chunk> Chunks = new();
+    public ConcurrentDictionary<Vector2i, Chunk> Chunks = new();
     public WorldGenerator Generator;
 
     public World()

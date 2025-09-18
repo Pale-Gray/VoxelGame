@@ -16,7 +16,7 @@ public class Logger
     
     public static void Info(string message)
     {
-        string msg = $"[INFO {Config.StartTime.Elapsed}] {message}";
+        string msg = $"[{Thread.CurrentThread.Name} : INFO {Config.StartTime.Elapsed}] {message}";
         
         if (DoDisplayMessages) Console.WriteLine(msg);
         _messages.Add(msg);
@@ -24,10 +24,16 @@ public class Logger
 
     public static void Warning(string message)
     {
-        string msg = $"[WARN {Config.StartTime.Elapsed}] {message}";
+        string msg = $"[{Thread.CurrentThread.Name} : WARN {Config.StartTime.Elapsed}] {message}";
         
         if (DoDisplayMessages) Console.WriteLine(msg);
         _messages.Add(msg);
+    }
+
+    public static void Error(Exception exception)
+    {
+        _messages.Add(exception.Message);
+        if (exception.StackTrace != null) _messages.Add(exception.StackTrace);
     }
 
     public static void WriteToFile()

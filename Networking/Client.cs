@@ -181,7 +181,7 @@ public class Client : Networked
                     if (Config.World.Chunks.TryAdd(chunkData.Position, chunkData.Column))
                     {
                         Config.World.Chunks[chunkData.Position].Status = ChunkStatus.Mesh;
-                        Config.World.Generator.GenerationQueue.Enqueue(chunkData.Position);
+                        // Config.World.Generator.GenerationQueue.Enqueue(chunkData.Position);
                     }
                     break;
                 case PacketType.BlockDestroy:

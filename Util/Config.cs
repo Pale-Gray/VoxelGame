@@ -15,6 +15,7 @@ public class Config
     public const int ChunkSize = 32;
     public const int ChunkVolume = ChunkSize * ChunkSize * ChunkSize;
     public const int ColumnSize = 16;
+    public const int Radius = 5;
 
     public static int Width = 960;
     public static int Height = 540;

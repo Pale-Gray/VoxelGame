@@ -122,61 +122,37 @@ public class Server : Networked
         
         foreach (KeyValuePair<NetPeer, Player> playerPair in ConnectedPlayers)
         {
-            int rad = 8;
             Player player = playerPair.Value;
-            PriorityQueue<Vector2i, int> q = new();
-            
-            if (player.ChunkPosition == null || ChunkMath.ChebyshevDistance(player.ChunkPosition.Value, ChunkMath.GlobalToChunk(ChunkMath.PositionToBlockPosition(player.Position)).Xz) >= 2)
+
+            if (ChunkMath.GlobalToChunk(ChunkMath.PositionToBlockPosition(player.Position)).Xz != player.ChunkPosition)
             {
+                Config.World.Generator.GeneratorQueue.Clear();
+                Config.World.Generator.MeshQueue.Clear();
+                foreach (Player pl in ConnectedPlayers.Values) pl.NeedsToUpdateLoad = true;
+            }
+            
+            if (player.NeedsToUpdateLoad)
+            {
+                player.NeedsToUpdateLoad = false;
+                
                 Console.WriteLine("move");
                 player.ChunkPosition = ChunkMath.GlobalToChunk(ChunkMath.PositionToBlockPosition(player.Position)).Xz;
                 // player.LoadQueue.Clear();
                 player.VisitedChunks.Clear();
                 // player.LoadQueue.Enqueue(player.ChunkPosition.Value);
-                for (int x = -rad; x <= rad; x++)
+                for (int x = -Config.Radius; x <= Config.Radius; x++)
                 {
-                    for (int z = -rad; z <= rad; z++)
+                    for (int z = -Config.Radius; z <= Config.Radius; z++)
                     {
-                        player.LoadingQueue.Enqueue(player.ChunkPosition.Value + (x, z), Vector2.Distance((x, z), Vector2i.Zero));
+                        player.LoadingQueue.Enqueue(player.ChunkPosition + (x, z), Vector2.Distance((x, z), Vector2i.Zero));
                     }
                 }
             }
 
             while (player.LoadingQueue.TryDequeue(out Vector2i chunkPosition, out float priority))
             {
-                
-                Config.World.Generator.GeneratorQueue.Enqueue((chunkPosition.X, chunkPosition.Y, ChunkMath.ChebyshevDistance(chunkPosition, player.ChunkPosition.Value)));
-                /*
-                if (Config.World.Chunks.TryGetValue(chunkPosition, out Chunk chunk))
-                {
-                    switch (chunk.Status)
-                    {
-                        case ChunkStatus.Empty:
-                            if (!chunk.IsUpdating)
-                            {
-                                chunk.IsUpdating = true;
-                                ThreadPool.QueueUserWorkItem(Config.World.Generator.GenerateColumn, chunk);
-                            }
-                            // if (!Config.World.Generator.GenerationQueue.Contains(chunkPosition)) Config.World.Generator.GenerationQueue.Enqueue(chunkPosition);
-                            break;
-                        case ChunkStatus.Mesh:
-                            if (Config.World.Generator.AreNeighborsTheSameStatus(chunkPosition, ChunkStatus.Mesh))
-                            {
-                                if (!chunk.IsUpdating)
-                                {
-                                    chunk.IsUpdating = true;
-                                    ThreadPool.QueueUserWorkItem(Config.World.Generator.GenerateMesh, new object[] { Config.World, chunk });
-                                }
-                                // if (!Config.World.Generator.MeshQueue.Contains(chunkPosition)) Config.World.Generator.MeshQueue.Enqueue(chunkPosition);
-                            }
-                            break;
-                    }
-                }
-                else
-                {
-                    Config.World.Chunks.TryAdd(chunkPosition, new Chunk(chunkPosition));
-                }
-                */
+                if (!Config.World.Chunks.ContainsKey(chunkPosition)) Config.World.Chunks.TryAdd(chunkPosition, new Chunk(chunkPosition));
+                Config.World.Generator.GeneratorQueue.Enqueue((chunkPosition.X, chunkPosition.Y, ChunkMath.ChebyshevDistance(chunkPosition, player.ChunkPosition)));
             }
         }
     }

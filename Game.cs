@@ -19,7 +19,8 @@ class Game
     {
         Config.StartTime = Stopwatch.StartNew();
 
-        ThreadPool.SetMaxThreads(100, 100);
+        Thread.CurrentThread.Name = "Main Thread";
+        AppDomain.CurrentDomain.UnhandledException += UnhandledException;
 
         // Dictionary<Vector2i, Chunk> stuff = new();
         // Stopwatch sw = Stopwatch.StartNew();
@@ -119,6 +120,12 @@ class Game
         Config.Server?.Stop();
         Config.Client?.Stop();
         
+        Logger.WriteToFile();
+    }
+
+    static void UnhandledException(object obj, UnhandledExceptionEventArgs eventArgs)
+    {
+        Logger.Error(eventArgs.ExceptionObject as Exception);
         Logger.WriteToFile();
     }
 }

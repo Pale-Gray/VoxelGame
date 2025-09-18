@@ -2,12 +2,9 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Runtime.Intrinsics;
-using System.Runtime.Intrinsics.X86;
 using System.Threading;
-using OpenTK.Graphics.Vulkan;
 using OpenTK.Mathematics;
+using VoxelGame.Util;
 
 namespace VoxelGame;
 
@@ -15,16 +12,16 @@ public class WorldGenerator
 {
     private World _world;
     private List<Thread> _generatorThreads = new();
+    private List<Thread> _meshThreads = new();
     private AutoResetEvent _generatorResetEvent = new AutoResetEvent(true);
+    private AutoResetEvent _meshResetEvent = new AutoResetEvent(true);
     public bool ShouldMesh = false;
     private bool _shouldRun = true;
 
     public ConcurrentQueue<Vector3i> GeneratorQueue = new();
+    public ConcurrentQueue<Vector3i> MeshQueue = new();
     
-    public ConcurrentQueue<Vector2i> GenerationQueue = new();
-    public ConcurrentQueue<Vector2i> MeshQueue = new();
     public ConcurrentQueue<Vector2i> UploadQueue = new();
-    public PriorityQueue<Vector2i, int> UploadQueuePriority = new();
     
     public WorldGenerator(World world, bool shouldMesh = true)
     {
@@ -36,9 +33,13 @@ public class WorldGenerator
     {
         for (int i = 0; i < 4; i++)
         {
-            _generatorThreads.Add(new Thread(HandleQueues) { IsBackground = true });
+            _generatorThreads.Add(new Thread(HandleGenerationQueue) { IsBackground = true });
             _generatorThreads[i].Name = "Generation Thread";
             _generatorThreads[i].Start();
+            
+            // _meshThreads.Add(new Thread(HandleMeshQueue) { IsBackground = true});
+            // _meshThreads[i].Name = "Meshing Thread";
+            // _meshThreads[i].Start();
         }
         
         return this;
@@ -59,6 +60,7 @@ public class WorldGenerator
     {
         // if (GenerationQueue.Count > 0 || MeshQueue.Count > 0) _generatorResetEvent.Set();
         if (GeneratorQueue.Count > 0) _generatorResetEvent.Set();
+        if (MeshQueue.Count > 0) _generatorResetEvent.Set();
         
         while (UploadQueue.TryDequeue(out Vector2i position))
         {
@@ -72,49 +74,104 @@ public class WorldGenerator
         }
     }
 
-    private void HandleQueues()
+    private void HandleMeshQueue()
     {
-        Stopwatch sw = new Stopwatch();
-        int i = 0;
+        Logger.Info("Hello from mesh thread");
+        
+        while (_shouldRun)
+        {
+            _meshResetEvent.WaitOne();
+            while (MeshQueue.TryDequeue(out Vector3i sample))
+            {
+                Vector2i position = sample.Xy;
+                int distance = sample.Z;
+
+                if (_world.Chunks.TryGetValue(position, out Chunk chunk))
+                {
+                    Monitor.Enter(chunk);
+                    switch (chunk.Status)
+                    {
+                        case ChunkStatus.Mesh:
+                            if (distance < Config.Radius)
+                            {
+                                if (AreNeighborsTheSameStatus(position, ChunkStatus.Mesh))
+                                {
+                                    GenerateMesh(_world, chunk);
+                                    chunk.Status = ChunkStatus.Upload;
+                                    UploadQueue.Enqueue(position);
+                                }
+                                else
+                                {
+                                    MeshQueue.Enqueue(sample);
+                                }
+                            }
+                            break;
+                    }
+                    Monitor.Exit(chunk);
+                }
+            }
+        }
+    }
+
+    private void HandleGenerationQueue()
+    {
+        Vector2i position;
+        int distance;
         
         while (_shouldRun)
         {
             _generatorResetEvent.WaitOne();
-            Vector2i position;
-            Chunk chunk;
-
-            i = 0;
-            if (GenerationQueue.TryDequeue(out position) && !GenerationQueue.Contains(position) && Config.World.Chunks.TryGetValue(position, out chunk))
+            if (GeneratorQueue.TryDequeue(out Vector3i generationSample))
             {
-                i++;
-                Monitor.Enter(chunk);
-                
-                sw.Restart();
-                GenerateColumn(chunk);
-                chunk.Status = ChunkStatus.Mesh;
-                sw.Stop();
+                position = generationSample.Xy;
+                distance = generationSample.Z;
 
-                Config.LastGenTime = sw.Elapsed;
-                Config.GenTimes.Add(sw.Elapsed);
-                
-                Monitor.Exit(chunk);
+                if (_world.Chunks.TryGetValue(position, out Chunk chunk))
+                {
+                    Monitor.Enter(chunk);
+                    switch (chunk.Status)
+                    {
+                        case ChunkStatus.Empty:
+                            GenerateChunk(chunk);
+                            chunk.Status = ChunkStatus.Mesh;
+                            MeshQueue.Enqueue(generationSample);
+                            break;
+                        case ChunkStatus.Mesh:
+                            MeshQueue.Enqueue(generationSample);
+                            break;
+                    }
+                    Monitor.Exit(chunk);
+                }
             }
 
-            i = 0;
-            if (MeshQueue.TryDequeue(out position) && !MeshQueue.Contains(position) && Config.World.Chunks.TryGetValue(position, out chunk))
+            if (MeshQueue.TryDequeue(out Vector3i meshSample))
             {
-                i++;
-                Monitor.Enter(chunk);
+                position = meshSample.Xy;
+                distance = meshSample.Z;
                 
-                sw.Restart();
-                // GenerateMesh(Config.World, chunk);
-                chunk.Status = ChunkStatus.Upload;
-                sw.Stop();
-                
-                // Config.LastMeshTime = sw.Elapsed;
-                // Config.MeshTimes.Add(sw.Elapsed);
-                
-                Monitor.Exit(chunk);
+                if (_world.Chunks.TryGetValue(position, out Chunk chunk))
+                {
+                    Monitor.Enter(chunk);
+                    switch (chunk.Status)
+                    {
+                        case ChunkStatus.Mesh:
+                            if (distance < Config.Radius)
+                            {
+                                if (AreNeighborsTheSameStatus(position, ChunkStatus.Mesh))
+                                {
+                                    GenerateMesh(_world, chunk);
+                                    chunk.Status = ChunkStatus.Upload;
+                                    UploadQueue.Enqueue(position);
+                                }
+                                else
+                                {
+                                    MeshQueue.Enqueue(meshSample);
+                                }
+                            }
+                            break;
+                    }
+                    Monitor.Exit(chunk);
+                }
             }
         }
     }
@@ -150,9 +207,8 @@ public class WorldGenerator
         return true;
     }
     
-    public void GenerateColumn(object? obj)
+    public void GenerateChunk(Chunk chunk)
     {
-        Chunk column = obj as Chunk;
         
         float seaLevel = 256.0f;
         float maxAscent = 64.0f;
@@ -161,13 +217,13 @@ public class WorldGenerator
         
         Vector3i arraySize = Noise.NoiseSizeValue3(step, (Config.ChunkSize, Config.ChunkSize * Config.ColumnSize, Config.ChunkSize));
         Span<float> noiseOneArray = stackalloc float[arraySize.X * arraySize.Y * arraySize.Z];
-        Noise.PregenerateValue3(noiseOneArray, 0, step, arraySize, new Vector3i(column.Position.X, 0, column.Position.Y) * Config.ChunkSize, new Vector3(64), true, 4);
+        Noise.PregenerateValue3(noiseOneArray, 0, step, arraySize, new Vector3i(chunk.Position.X, 0, chunk.Position.Y) * Config.ChunkSize, new Vector3(64), true, 4);
         
         for (int x = 0; x < Config.ChunkSize; x++)
         {
             for (int z = 0; z < Config.ChunkSize; z++)
             {
-                Vector3i globalPosition = new Vector3i(x, 0, z) + (new Vector3i(column.Position.X, 0, column.Position.Y) * Config.ChunkSize);
+                Vector3i globalPosition = new Vector3i(x, 0, z) + (new Vector3i(chunk.Position.X, 0, chunk.Position.Y) * Config.ChunkSize);
 
                 float selector = Noise.Value2(1, (Vector2)globalPosition.Xz / 64.0f, true, 4);
                 selector *= 10.0f;
@@ -195,10 +251,10 @@ public class WorldGenerator
                     
                     if (density + height >= 0.5f)
                     {
-                        column.SetBlock((x, y, z), Config.Register.GetBlockFromId("stone"));
+                        chunk.SetBlock((x, y, z), Config.Register.GetBlockFromId("stone"));
                     } else if (y <= seaLevel)
                     {
-                        column.SetBlock((x, y, z), Config.Register.GetBlockFromId("water"));
+                        chunk.SetBlock((x, y, z), Config.Register.GetBlockFromId("water"));
                     }
                 }
             }
@@ -208,26 +264,20 @@ public class WorldGenerator
         {
             for (int z = 0; z < Config.ChunkSize; z++)
             {
-                Vector3i globalPosition = new Vector3i(x, 0, z) + (new Vector3i(column.Position.X, 0, column.Position.Y) * Config.ChunkSize);
+                Vector3i globalPosition = new Vector3i(x, 0, z) + (new Vector3i(chunk.Position.X, 0, chunk.Position.Y) * Config.ChunkSize);
                 
                 for (int y = Config.ChunkSize * Config.ColumnSize - 1; y >= 0; y--)
                 {
                     globalPosition.Y = y;
 
-                    if (column.GetBlockId((x, y, z)) == "stone" && !column.GetSolid((x, y + 1, z)))
+                    if (chunk.GetBlockId((x, y, z)) == "stone" && !chunk.GetSolid((x, y + 1, z)))
                     {
-                        for (int i = 0; i < 5; i++) if (column.GetSolid((x, y - i, z))) column.SetBlock((x, y - i, z), Config.Register.GetBlockFromId("dirt"));
-                        column.SetBlock((x, y, z), Config.Register.GetBlockFromId("grass"));
+                        for (int i = 0; i < 5; i++) if (chunk.GetSolid((x, y - i, z))) chunk.SetBlock((x, y - i, z), Config.Register.GetBlockFromId("dirt"));
+                        chunk.SetBlock((x, y, z), Config.Register.GetBlockFromId("grass"));
                     }
                 }
             }
         }
-
-        column.Status = ChunkStatus.Mesh;
-        column.IsUpdating = false;
-        // column.Status = ChunkStatus.Mesh;
-        // if (column.HasPriority) HighPriorityGenerationQueue.Enqueue(column.Position);
-        // else LowPriorityGenerationQueue.Enqueue(column.Position);
     }
 
     float Remap(float a, float v1, float v2)
@@ -235,16 +285,12 @@ public class WorldGenerator
         return (a - v1) * (1.0f / (v2 - v1));
     }
     
-    public void GenerateMesh(object? args)
+    public void GenerateMesh(World world, Chunk chunk)
     {
-        object[] arguments = args as object[];
-        World world = arguments[0] as World;
-        Chunk column = arguments[1] as Chunk;
-        
         for (int i = 0; i < Config.ColumnSize; i++)
         {
-            ChunkSectionMesh mesh = column.ChunkMeshes[i];
-            if (!mesh.ShouldUpdate || column.ChunkSections[i].IsEmpty) continue;
+            ChunkSectionMesh mesh = chunk.ChunkMeshes[i];
+            if (!mesh.ShouldUpdate || chunk.ChunkSections[i].IsEmpty) continue;
             mesh.SolidVertices.Clear();
             mesh.SolidIndices.Clear();
             mesh.TransparentVertices.Clear();
@@ -257,8 +303,8 @@ public class WorldGenerator
                 {
                     for (int z = 0; z < Config.ChunkSize; z++)
                     {
-                        Vector3i globalBlockPosition = (x, y, z) + new Vector3i(column.Position.X, i, column.Position.Y) * Config.ChunkSize;
-                        string? id = column.ChunkSections[i].GetBlockId((x, y, z));
+                        Vector3i globalBlockPosition = (x, y, z) + new Vector3i(chunk.Position.X, i, chunk.Position.Y) * Config.ChunkSize;
+                        string? id = chunk.ChunkSections[i].GetBlockId((x, y, z));
                         if (id != null)
                         {
                             Config.Register.GetBlockFromId(id).OnBlockMesh(_world, globalBlockPosition);
@@ -280,10 +326,6 @@ public class WorldGenerator
             Config.LastMeshTime = sw.Elapsed;
             Config.MeshTimes.Add(sw.Elapsed);
         }
-        
-        column.Status = ChunkStatus.Upload;
-        column.IsUpdating = false;
-        UploadQueue.Enqueue(column.Position);
     }
     
     public void UploadMesh(Chunk column)

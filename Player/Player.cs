@@ -14,7 +14,8 @@ public class Player : Entity
     public PriorityQueue<Vector2i, float> LoadingQueue = new();
     public MoveableCamera Camera;
     public float Speed = 100.0f;
-    public Vector2i? ChunkPosition = null;
+    public Vector2i ChunkPosition;
+    public bool NeedsToUpdateLoad = true;
     public Guid Id;
 
     public Player(string name, Guid id = new Guid())
