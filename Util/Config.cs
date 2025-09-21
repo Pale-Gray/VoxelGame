@@ -52,4 +52,6 @@ public static class Config
 
     public static World World;
     public static Stopwatch StartTime;
+
+    public static int Seed = Random.Next();
 }

@@ -368,6 +368,7 @@ public class Client : Networked
                   Last gen time: {lastGenTime}ms, Max gen time: {maxGenTime}ms, Min gen time: {minGenTime}ms, Avg gen time: {avgGenTime}ms
                   Last mesh time: {lastMeshTime}ms, Max mesh time: {maxMeshTime}ms, Min mesh time: {minMeshTime}ms, Avg mesh time: {avgMeshTime}ms
                   Position: {ChunkMath.PositionToBlockPosition(_player.Position)}
+                  Seed: {Config.Seed}
                   """, Gui.AsPixelPerfect((0, 0)), Gui.AsPixelPerfect(8.0f), Color3.White);
         if (Gui.Button("I am a button", Gui.AsPixelPerfect((100, 100)), Gui.AsPixelPerfect((80 + float.Floor(float.Abs(float.Sin(Config.ElapsedTime) * 10)), 20 + float.Floor(float.Abs(float.Cos(Config.ElapsedTime) * 20)))), Gui.AsPixelPerfect((4, 4)))) Environment.Exit(0);
         Toolkit.OpenGL.SwapBuffers(Config.OpenGLContext);

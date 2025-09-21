@@ -8,6 +8,30 @@ namespace VoxelGame;
 
 public class Noise
 {
+    [ThreadStatic] private static Dictionary<(int, Vector3i), float>? _3dCacheThread;
+
+    private static Dictionary<(int, Vector3i), float> _3dCache
+    {
+        get
+        {
+            _3dCacheThread ??= new();
+            if (_3dCacheThread.Count > 200) _3dCacheThread.Clear();
+            return _3dCacheThread;
+        }
+    }
+
+    [ThreadStatic] private static Dictionary<(int, Vector2i), float>? _2dCacheThread;
+
+    private static Dictionary<(int, Vector2i), float> _2dCache
+    {
+        get
+        {
+            _2dCacheThread ??= new();
+            if (_2dCacheThread.Count > 200) _2dCacheThread.Clear();
+            return _2dCacheThread;
+        }
+    }
+    
     public static uint Random2(int seed, Vector2i position)
     {
         uint s = Unsafe.BitCast<int, uint>(seed);
@@ -33,8 +57,6 @@ public class Noise
         
         return result;
     }
-
-    private static Dictionary<Vector3i, uint> _cache = new();
     
     public static uint Random3(int seed, Vector3i position)
     {
@@ -63,14 +85,29 @@ public class Noise
         result ^= result << 9;
         result ^= result << 7;
         result ^= result << 3;
-        // result ^= result << 11;
-
-        // _cache.TryAdd(position, result);
+        
         return result;
     }
 
-    public static float FloatRandom2(int seed, Vector2i position) => ((Random2(seed, position) / (float)uint.MaxValue) - 0.5f) * 2.0f;
-    public static float FloatRandom3(int seed, Vector3i position) => (float)((Random3(seed, position) / (double)uint.MaxValue) - 0.5f) * 2.0f;
+    public static float FloatRandom2(int seed, Vector2i position)
+    {
+        float value;
+        if (_2dCache.TryGetValue((seed, position), out value)) return value;
+        value = (float)((Random2(seed, position) / (double)uint.MaxValue) - 0.5f) * 2.0f;
+
+        _2dCache.TryAdd((seed, position), value);
+        return value;
+    }
+
+    public static float FloatRandom3(int seed, Vector3i position)
+    {
+        float value;
+        if (_3dCache.TryGetValue((seed, position), out value)) return value;
+        value = (float)((Random3(seed, position) / (double)uint.MaxValue) - 0.5f) * 2.0f;
+
+        _3dCache.TryAdd((seed, position), value);
+        return value;
+    }
 
     // as defined in https://registry.khronos.org/OpenGL-Refpages/gl4/html/smoothstep.xhtml, except it's expected t is from 0 to 1
     public static float Smoothstep(float t) => t * t * (3.0f - 2.0f * t);
