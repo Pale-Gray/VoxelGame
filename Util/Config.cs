@@ -10,18 +10,16 @@ using VoxelGame.Util;
 
 namespace VoxelGame;
 
-public class Config
+public static class Config
 {
     public const int ChunkSize = 32;
-    public const int ChunkVolume = ChunkSize * ChunkSize * ChunkSize;
-    public const int ColumnSize = 16;
-    public const int Radius = 5;
+    public const int ColumnSize = 8;
+    public const int Radius = 8;
 
     public static int Width = 960;
     public static int Height = 540;
 
     public static bool IsRunning = true;
-    public static Register Register = new Register();
     
     public static DynamicAtlas Atlas;
     public static Shader ChunkShader;

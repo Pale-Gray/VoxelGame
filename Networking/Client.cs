@@ -186,11 +186,11 @@ public class Client : Networked
                     break;
                 case PacketType.BlockDestroy:
                     BlockDestroyPacket blockDestroy = (BlockDestroyPacket)new BlockDestroyPacket().Deserialize(reader);
-                    Config.Register.GetBlockFromId(blockDestroy.Id).OnBlockDestroy(Config.World, blockDestroy.GlobalBlockPosition);
+                    Register.GetBlockFromId(blockDestroy.Id).OnBlockDestroy(Config.World, blockDestroy.GlobalBlockPosition);
                     break;
                 case PacketType.BlockPlace:
                     BlockPlacePacket blockPlace = (BlockPlacePacket)new BlockPlacePacket().Deserialize(reader);
-                    Config.Register.GetBlockFromId(blockPlace.Id).OnBlockPlace(Config.World, blockPlace.GlobalBlockPosition);
+                    Register.GetBlockFromId(blockPlace.Id).OnBlockPlace(Config.World, blockPlace.GlobalBlockPosition);
                     break;
             }
             
@@ -317,7 +317,7 @@ public class Client : Networked
             {
                 if (Input.IsMouseButtonPressed(MouseButton.Button2))
                 {
-                    Config.Register.GetBlockFromId("sand").OnBlockPlace(Config.World, ray.PreviousHitBlockPosition);
+                    Register.GetBlockFromId("sand").OnBlockPlace(Config.World, ray.PreviousHitBlockPosition);
                     BlockPlacePacket packet = new BlockPlacePacket();
                     packet.Id = "sand";
                     packet.GlobalBlockPosition = ray.PreviousHitBlockPosition;
@@ -327,7 +327,7 @@ public class Client : Networked
             
                 if (Input.IsMouseButtonPressed(MouseButton.Button1))
                 {
-                    Config.Register.GetBlockFromId(Config.World.GetBlockId(ray.HitBlockPosition)).OnBlockDestroy(Config.World, ray.HitBlockPosition);
+                    Register.GetBlockFromId(Config.World.GetBlockId(ray.HitBlockPosition)).OnBlockDestroy(Config.World, ray.HitBlockPosition);
                     BlockDestroyPacket packet = new BlockDestroyPacket();
                     packet.GlobalBlockPosition = ray.HitBlockPosition;
                     packet.Id = Config.World.GetBlockId(ray.HitBlockPosition);
@@ -367,6 +367,7 @@ public class Client : Networked
                   Heap size: {GC.GetGCMemoryInfo().HeapSizeBytes / 1024 / 1024}MB
                   Last gen time: {lastGenTime}ms, Max gen time: {maxGenTime}ms, Min gen time: {minGenTime}ms, Avg gen time: {avgGenTime}ms
                   Last mesh time: {lastMeshTime}ms, Max mesh time: {maxMeshTime}ms, Min mesh time: {minMeshTime}ms, Avg mesh time: {avgMeshTime}ms
+                  Position: {ChunkMath.PositionToBlockPosition(_player.Position)}
                   """, Gui.AsPixelPerfect((0, 0)), Gui.AsPixelPerfect(8.0f), Color3.White);
         if (Gui.Button("I am a button", Gui.AsPixelPerfect((100, 100)), Gui.AsPixelPerfect((80 + float.Floor(float.Abs(float.Sin(Config.ElapsedTime) * 10)), 20 + float.Floor(float.Abs(float.Cos(Config.ElapsedTime) * 20)))), Gui.AsPixelPerfect((4, 4)))) Environment.Exit(0);
         Toolkit.OpenGL.SwapBuffers(Config.OpenGLContext);

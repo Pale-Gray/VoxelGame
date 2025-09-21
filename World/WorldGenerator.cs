@@ -209,52 +209,115 @@ public class WorldGenerator
     
     public void GenerateChunk(Chunk chunk)
     {
-        
         float seaLevel = 256.0f;
         float maxAscent = 64.0f;
 
-        Vector3i step = new Vector3i(32, 16, 32);
+        Vector3i step = new Vector3i(16, 8, 16);
         
         Vector3i arraySize = Noise.NoiseSizeValue3(step, (Config.ChunkSize, Config.ChunkSize * Config.ColumnSize, Config.ChunkSize));
         Span<float> noiseOneArray = stackalloc float[arraySize.X * arraySize.Y * arraySize.Z];
+        Span<float> noiseTwoArray = stackalloc float[arraySize.X * arraySize.Y * arraySize.Z];
+        Span<float> noiseThreeArray = stackalloc float[arraySize.X * arraySize.Y * arraySize.Z];
+        Span<float> noiseFourArray = stackalloc float[arraySize.X * arraySize.Y * arraySize.Z];
+        Span<float> noiseFiveArray = stackalloc float[arraySize.X * arraySize.Y * arraySize.Z];
         Noise.PregenerateValue3(noiseOneArray, 0, step, arraySize, new Vector3i(chunk.Position.X, 0, chunk.Position.Y) * Config.ChunkSize, new Vector3(64), true, 4);
+        Noise.PregenerateValue3(noiseTwoArray, 1, step, arraySize, new Vector3(chunk.Position.X, 0, chunk.Position.Y) * Config.ChunkSize, new Vector3(64), true, 4);
+        Noise.PregenerateValue3(noiseThreeArray, 2, step, arraySize, new Vector3(chunk.Position.X, 0, chunk.Position.Y) * Config.ChunkSize, new Vector3(32), false, 4);
+        Noise.PregenerateValue3(noiseFourArray, 3, step, arraySize, new Vector3(chunk.Position.X, 0, chunk.Position.Y) * Config.ChunkSize, new Vector3(64), true, 2);
+        Noise.PregenerateValue3(noiseFiveArray, 4, step, arraySize, new Vector3(chunk.Position.X, 0, chunk.Position.Y) * Config.ChunkSize, new Vector3(16), true, 2);
         
         for (int x = 0; x < Config.ChunkSize; x++)
         {
             for (int z = 0; z < Config.ChunkSize; z++)
             {
                 Vector3i globalPosition = new Vector3i(x, 0, z) + (new Vector3i(chunk.Position.X, 0, chunk.Position.Y) * Config.ChunkSize);
+                // float s = Noise.Value2(2, globalPosition.Xz / new Vector2(32), false, 4);
+                // s *= 5.0f;
+                // s = float.Clamp(s, -1.0f, 1.0f);
+                // s = (s + 1.0f) * 0.5f;
 
-                float selector = Noise.Value2(1, (Vector2)globalPosition.Xz / 64.0f, true, 4);
-                selector *= 10.0f;
-                selector = (float.Clamp(selector, -1.0f, 1.0f) + 1.0f) * 0.5f;
-
-                float continentality = Noise.Value2(5, (Vector2)globalPosition.Xz / 512.0f, true, 4);
-                continentality *= 10.0f;
-                continentality = (float.Clamp(continentality, -1.0f, 1.0f) + 1.0f) * 0.5f;
-                
-                float erosionOne = Noise.Value2(2, (Vector2)globalPosition.Xz / 128.0f, true, 2);
-                float erosionTwo = Noise.Value2(3, (Vector2)globalPosition.Xz / 128.0f, true, 2);
-                float erosion = (float.Lerp(erosionOne, erosionTwo, selector) + 1.0f) * 0.5f;
-
-                erosion *= continentality;
+                float continentality = Noise.Value2(4, globalPosition.Xz / new Vector2(128), false, 4);
+                continentality *= 5.0f;
+                continentality = float.Clamp(continentality, -1.0f, 1.0f);
+                continentality = (continentality + 1.0f) * 0.5f;
                 
                 for (int y = Config.ChunkSize * Config.ColumnSize - 1; y >= 0; y--)
                 {
                     globalPosition.Y = y;
-                    float min = seaLevel - 128 * (1.0f - erosion);
-                    float max = seaLevel + 256 - ((256 - 64) * (1.0f - erosion));
-                    float height = Remap(globalPosition.Y, min, max);
-                    height = (1.0f - height);
-
-                    float density = Noise.Value3(noiseOneArray, new Vector3(x, y, z) / step, arraySize) * 0.5f;
                     
-                    if (density + height >= 0.5f)
+                    float yHeight = Remap(y, 256 - float.Lerp(128, 0, continentality), 128 - float.Lerp(64, 0, continentality));
+
+                    float densityOne = (Noise.Value3(noiseOneArray, (x, y, z) / (Vector3)step, arraySize) + 1.0f) * 0.5f;
+                    float densityTwo = (Noise.Value3(noiseTwoArray, (x, y, z) / (Vector3)step, arraySize) + 1.0f) * 0.5f;
+                    float selector = (Noise.Value3(noiseThreeArray, (x, y, z) / (Vector3)step, arraySize));
+                    selector *= 5.0f;
+                    selector = float.Clamp(selector, -1.0f, 1.0f);
+                    selector = (selector + 1.0f) * 0.5f;
+                    
+                    float density = float.Lerp(densityOne, densityTwo, selector);
+
+                    if (density + yHeight > 1.0f)
                     {
-                        chunk.SetBlock((x, y, z), Config.Register.GetBlockFromId("stone"));
-                    } else if (y <= seaLevel)
+                        chunk.SetBlock((x, y, z), Register.GetBlockFromId("stone"));
+                    } else if (y <= 128)
                     {
-                        chunk.SetBlock((x, y, z), Config.Register.GetBlockFromId("water"));
+                        chunk.SetBlock((x, y, z), Register.GetBlockFromId("water"));
+                    }
+                }
+            }
+        }
+
+        for (int x = 0; x < Config.ChunkSize; x++)
+        {
+            for (int z = 0; z < Config.ChunkSize; z++)
+            {
+                Vector3i globalPosition = new Vector3i(x, 0, z) + (new Vector3i(chunk.Position.X, 0, chunk.Position.Y) * Config.ChunkSize);
+                
+                for (int y = Config.ChunkSize * Config.ColumnSize - 1; y >= 0; y--)
+                {
+                    globalPosition.Y = y;
+
+                    if (!chunk.GetTransparent((x, y, z)) && chunk.GetSolid((x, y, z)) && !chunk.GetSolid((x, y + 1, z)))
+                    {
+                        for (int i = 0; i < 5; i++)
+                        {
+                            if (!chunk.GetSolid((x, y - i, z))) break;
+                            chunk.SetBlock((x, y - i, z), Register.GetBlockFromId("dirt"));
+                        }
+                        
+                        chunk.SetBlock((x, y, z), Register.GetBlockFromId("grass"));
+                    }
+                }
+            }
+        }
+
+        for (int x = 0; x < Config.ChunkSize; x++)
+        {
+            for (int z = 0; z < Config.ChunkSize; z++)
+            {
+                Vector3i globalPosition = new Vector3i(x, 0, z) + (new Vector3i(chunk.Position.X, 0, chunk.Position.Y) * Config.ChunkSize);
+                
+                for (int y = Config.ChunkSize * Config.ColumnSize - 1; y >= 0; y--)
+                {
+                    globalPosition.Y = y;
+
+                    float cave = Noise.Value3(noiseFiveArray, (x, y, z) / (Vector3)step, arraySize);
+                    float visibility = Noise.Value3(noiseFourArray, (x, y, z) / (Vector3)step, arraySize);
+                    visibility *= 10.0f;
+                    visibility = float.Clamp(visibility, -1.0f, 1.0f);
+                    visibility = (visibility + 1.0f) * 0.5f;
+                    
+                    float f = Remap(y, 256, 32);
+                    f *= 2.0f;
+                    f = float.Max(f, 0.0f);
+                    float f2 = Remap(y, 16, 0);
+                    f2 = 1.0f - float.Clamp(f2, 0.0f, 1.0f);
+                    cave *= 5.0f;
+                    cave *= visibility;
+                    
+                    if (cave * (f * f2) >= 1.0)
+                    {
+                        if (!chunk.GetTransparent((x,y,z))) chunk.SetBlock((x,y,z));
                     }
                 }
             }
@@ -270,13 +333,24 @@ public class WorldGenerator
                 {
                     globalPosition.Y = y;
 
-                    if (chunk.GetBlockId((x, y, z)) == "stone" && !chunk.GetSolid((x, y + 1, z)))
+                    if (y < 16 && !chunk.GetSolid((x, y, z)))
                     {
-                        for (int i = 0; i < 5; i++) if (chunk.GetSolid((x, y - i, z))) chunk.SetBlock((x, y - i, z), Config.Register.GetBlockFromId("dirt"));
-                        chunk.SetBlock((x, y, z), Config.Register.GetBlockFromId("grass"));
+                        chunk.SetBlock((x, y, z), Register.GetBlockFromId("lava"));
                     }
                 }
             }
+        }
+    }
+
+    void Line(Vector3i from, Vector3i to, Chunk chunk)
+    {
+        Vector3 direction = Vector3.Normalize(to - from);
+
+        for (int i = 0; i < 256; i++)
+        {
+            Vector3 current = Vector3.Lerp(from, to, i / 256.0f);
+            
+            chunk.SetBlock((Vector3i)current);
         }
     }
 
@@ -290,7 +364,8 @@ public class WorldGenerator
         for (int i = 0; i < Config.ColumnSize; i++)
         {
             ChunkSectionMesh mesh = chunk.ChunkMeshes[i];
-            if (!mesh.ShouldUpdate || chunk.ChunkSections[i].IsEmpty) continue;
+            // if (!mesh.ShouldUpdate || chunk.ChunkSections[i].IsEmpty) continue;
+            // if (!mesh.ShouldUpdate) continue;
             mesh.SolidVertices.Clear();
             mesh.SolidIndices.Clear();
             mesh.TransparentVertices.Clear();
@@ -304,10 +379,11 @@ public class WorldGenerator
                     for (int z = 0; z < Config.ChunkSize; z++)
                     {
                         Vector3i globalBlockPosition = (x, y, z) + new Vector3i(chunk.Position.X, i, chunk.Position.Y) * Config.ChunkSize;
-                        string? id = chunk.ChunkSections[i].GetBlockId((x, y, z));
-                        if (id != null)
+                        // string? id = chunk.ChunkSections[i].GetBlockId((x, y, z));
+                        string id = chunk.GetBlockId((x, y + (i * Config.ChunkSize), z));
+                        if (id != "air")
                         {
-                            Config.Register.GetBlockFromId(id).OnBlockMesh(_world, globalBlockPosition);
+                            Register.GetBlockFromId(id).OnBlockMesh(_world, globalBlockPosition);
                         }
                     }
                 }
@@ -333,18 +409,10 @@ public class WorldGenerator
         for (int i = 0; i < Config.ColumnSize; i++)
         {
             ChunkSectionMesh mesh = column.ChunkMeshes[i];
-            if (!mesh.ShouldUpdate) continue;
+            // if (!mesh.ShouldUpdate) continue;
             mesh.Update();
         }
         
         column.Status = ChunkStatus.Done;
-    }
-
-    public void EnqueueChunk(Vector2i position, ChunkStatus chunkStatus, bool hasPriority)
-    {
-        _world.Chunks[position].Mutex.WaitOne();
-        _world.Chunks[position].HasPriority = hasPriority;
-        _world.Chunks[position].Status = chunkStatus;
-        _world.Chunks[position].Mutex.ReleaseMutex();
     }
 }

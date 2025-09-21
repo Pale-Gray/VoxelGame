@@ -69,7 +69,7 @@ public class Noise
         return result;
     }
 
-    public static float FloatRandom2(int seed, Vector2i position) => (float) ((Random2(seed, position) / (double)uint.MaxValue) - 0.5f) * 2.0f;
+    public static float FloatRandom2(int seed, Vector2i position) => ((Random2(seed, position) / (float)uint.MaxValue) - 0.5f) * 2.0f;
     public static float FloatRandom3(int seed, Vector3i position) => (float)((Random3(seed, position) / (double)uint.MaxValue) - 0.5f) * 2.0f;
 
     // as defined in https://registry.khronos.org/OpenGL-Refpages/gl4/html/smoothstep.xhtml, except it's expected t is from 0 to 1

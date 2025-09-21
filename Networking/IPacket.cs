@@ -100,7 +100,7 @@ public struct BlockDestroyPacket() : IPacket
     }
 }
 
-public struct ChunkDataPacket : IPacket
+public struct ChunkDataPacket() : IPacket
 {
     public PacketType Type { get; set; } = PacketType.ChunkData;
     public Vector2i Position;
@@ -110,34 +110,19 @@ public struct ChunkDataPacket : IPacket
     {
         writer.Write(Position.X);
         writer.Write(Position.Y);
-        for (int i = 0; i < Config.ColumnSize; i++)
-        {
-            // writer.WriteValues(RunLengthEncoder.Encode(Column.ChunkSections[i].Data).ToArray());
-            writer.WriteValues(Column.ChunkSections[i].Blocks.PaletteEntries);
-            writer.Write(Column.ChunkSections[i].Blocks.Data.Capacity);
-            writer.Write(Column.ChunkSections[i].Blocks.Data.BitSize);
-            writer.WriteValues(Column.ChunkSections[i].Blocks.Data.Data);
-            writer.WriteValues(Column.ChunkSections[i].SolidData);
-            writer.WriteValues(Column.ChunkSections[i].TransparentData);
-        }
+        writer.WriteValues(Column.Data.PaletteEntries);
+        writer.Write(Column.Data.Data.Capacity);
+        writer.Write(Column.Data.Data.BitSize);
+        writer.WriteValues(Column.Data.Data.Data);
     }
 
     public IPacket Deserialize(DataReader reader)
     {
         Position = (reader.ReadInt32(), reader.ReadInt32());
         Column = new Chunk(Position);
-        for (int i = 0; i < Config.ColumnSize; i++)
-        {
-            Column.ChunkSections[i].Position = (Position.X, i, Position.Y);
-            Column.ChunkSections[i].Blocks = new Palette<string>(reader.ReadStringValues(), new BitArray(reader.ReadInt32(), reader.ReadInt32(), reader.ReadUInt32Values()));
-            // Column.ChunkSections[i].Data = RunLengthEncoder.Decode(reader.ReadUInt16Values()).ToArray();
-            Column.ChunkSections[i].SolidData = reader.ReadUInt32Values();
-            Column.ChunkSections[i].TransparentData = reader.ReadUInt32Values();
-        }
+        Column.Data = new Palette<string>(reader.ReadStringValues(), new BitArray(reader.ReadInt32(), reader.ReadInt32(), reader.ReadUInt32Values()));
         
         return this;
     }
-    
-    public ChunkDataPacket() {}
 }
 

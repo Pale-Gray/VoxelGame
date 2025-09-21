@@ -22,6 +22,12 @@ public class ChunkMath
 
     public static Vector3i GlobalToLocal(Vector3i global)
     {
+        return ((int)Maths.EuclideanRemainder(global.X, Config.ChunkSize), global.Y, (int)Maths.EuclideanRemainder(global.Z, Config.ChunkSize));
+    }
+
+    public static Vector3i GlobalToLocalCubic(Vector3i global)
+    {
+        // return ((int)Maths.EuclideanRemainder(global.X, Config.ChunkSize), global.Y, (int)Maths.EuclideanRemainder(global.Z, Config.ChunkSize));
         return ((int)Maths.EuclideanRemainder(global.X, Config.ChunkSize), (int)Maths.EuclideanRemainder(global.Y, Config.ChunkSize), (int)Maths.EuclideanRemainder(global.Z, Config.ChunkSize));
     }
 

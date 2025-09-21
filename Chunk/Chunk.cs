@@ -14,13 +14,11 @@ public enum ChunkStatus
 
 public class Chunk
 {
-    public ChunkSection[] ChunkSections = new ChunkSection[Config.ColumnSize];
-    public Palette<string> Data = new Palette<string>(Config.ChunkSize * (Config.ChunkSize * Config.ColumnSize) * Config.ChunkSize);
+    public Palette<string> Data = new Palette<string>(Config.ChunkSize * Config.ChunkSize * Config.ChunkSize * Config.ColumnSize);
     public ChunkSectionMesh[] ChunkMeshes = new ChunkSectionMesh[Config.ColumnSize];
     public Vector2i Position;
     public ChunkStatus Status = ChunkStatus.Empty;
     public bool IsMeshIncomplete = false;
-    public Mutex Mutex = new Mutex();
     public float ElapsedTime = 0.0f;
     public bool HasPriority = true;
     public bool IsUpdating = false;
@@ -29,43 +27,39 @@ public class Chunk
         Position = position;
         for (int i = 0; i < Config.ColumnSize; i++)
         {
-            ChunkSections[i] = new ChunkSection() {Position = (position.X, i, position.Y)};
-            ChunkMeshes[i] = new ChunkSectionMesh();
+            ChunkMeshes[i] = new ChunkSectionMesh() { ChunkPosition = (position.X, i, position.Y) };
         }
     }
 
     public void SetBlock(Vector3i localPosition, Block? block = null)
     {
-        int index = localPosition.Y / Config.ChunkSize;
-        if (block == null)
+        if (localPosition.X < 0 || localPosition.X >= Config.ChunkSize || localPosition.Y < 0 || localPosition.Y >= Config.ChunkSize * Config.ColumnSize || localPosition.Z < 0 || localPosition.Z >= Config.ChunkSize) return;
+        
+        if (block != null)
         {
-            ChunkSections[index].SetBlock("air", localPosition.X, localPosition.Y % Config.ChunkSize, localPosition.Z);
-            ChunkSections[index].SetTransparent(false, localPosition.X, localPosition.Y % Config.ChunkSize, localPosition.Z);
-            ChunkSections[index].SetSolid(false, localPosition.X, localPosition.Y % Config.ChunkSize, localPosition.Z);
+            Data.Insert(VectorMath.Flatten(localPosition, Config.ChunkSize, Config.ChunkSize), block.Id);
         }
         else
         {
-            ChunkSections[index].SetBlock(block.Id, localPosition.X, localPosition.Y % Config.ChunkSize, localPosition.Z);
-            ChunkSections[index].SetTransparent(block.IsTransparent, localPosition.X, localPosition.Y % Config.ChunkSize, localPosition.Z);
-            ChunkSections[index].SetSolid(block.IsSolid, localPosition.X, localPosition.Y % Config.ChunkSize, localPosition.Z);
+            Data.Insert(VectorMath.Flatten(localPosition, Config.ChunkSize, Config.ChunkSize), "air");
         }
     }
 
     public string GetBlockId(Vector3i localPosition)
     {
-        int index = localPosition.Y / Config.ChunkSize;
-        return ChunkSections[index].GetBlockId((localPosition.X, localPosition.Y % Config.ChunkSize, localPosition.Z)) ?? "air";
+        if (localPosition.X < 0 || localPosition.X >= Config.ChunkSize || localPosition.Y < 0 || localPosition.Y >= Config.ChunkSize * Config.ColumnSize || localPosition.Z < 0 || localPosition.Z >= Config.ChunkSize) return "air";
+        return Data.Get(VectorMath.Flatten(localPosition, Config.ChunkSize, Config.ChunkSize)) ?? "air";
     }
 
     public bool GetTransparent(Vector3i localPosition)
     {
-        int index = localPosition.Y / Config.ChunkSize;
-        return ChunkSections[index].GetTransparent(localPosition.X, localPosition.Y % Config.ChunkSize, localPosition.Z);
+        if (localPosition.X < 0 || localPosition.X >= Config.ChunkSize || localPosition.Y < 0 || localPosition.Y >= Config.ChunkSize * Config.ColumnSize || localPosition.Z < 0 || localPosition.Z >= Config.ChunkSize) return false;
+        return Register.GetBlockFromId(GetBlockId(localPosition)).IsTransparent;
     }
 
     public bool GetSolid(Vector3i localPosition)
     {
-        int index = localPosition.Y / Config.ChunkSize;
-        return ChunkSections[index].GetSolid(localPosition.X, localPosition.Y % Config.ChunkSize, localPosition.Z);
+        if (localPosition.X < 0 || localPosition.X >= Config.ChunkSize || localPosition.Y < 0 || localPosition.Y >= Config.ChunkSize * Config.ColumnSize || localPosition.Z < 0 || localPosition.Z >= Config.ChunkSize) return false;
+        return Register.GetBlockFromId(GetBlockId(localPosition)).IsSolid;
     }
 }

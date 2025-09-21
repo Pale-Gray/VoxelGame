@@ -3,13 +3,12 @@ using VoxelGame.Util;
 
 namespace VoxelGame;
 
-public class Register
+public static class Register
 {
-    private Dictionary<string, Block> _blocks = new();
-
-    public int BlockCount => _blocks.Count;
+    private static Dictionary<string, Block> _blocks = new();
+    public static int BlockCount => _blocks.Count;
     
-    public void RegisterBlock(string id, Block block)
+    public static void RegisterBlock(string id, Block block)
     {
         block.Id = id;
         if (!_blocks.TryAdd(id, block))
@@ -18,11 +17,11 @@ public class Register
         }
         else
         {
-            Logger.Info($"Added block {id}");
+            Logger.Info($"Added block \"{id}\"");
         }
     }
 
-    public Block GetBlockFromId(string name)
+    public static Block GetBlockFromId(string name)
     {
         return _blocks[name];
     }

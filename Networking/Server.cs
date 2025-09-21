@@ -84,13 +84,13 @@ public class Server : Networked
                     break;
                 case PacketType.BlockDestroy:
                     BlockDestroyPacket blockDestroy = (BlockDestroyPacket) new BlockDestroyPacket().Deserialize(reader);
-                    Config.Register.GetBlockFromId(blockDestroy.Id).OnBlockDestroy(Config.World, blockDestroy.GlobalBlockPosition);
+                    Register.GetBlockFromId(blockDestroy.Id).OnBlockDestroy(Config.World, blockDestroy.GlobalBlockPosition);
                     
                     SendPacket(blockDestroy, fromPeer);
                     break;
                 case PacketType.BlockPlace:
                     BlockPlacePacket packet = (BlockPlacePacket)new BlockPlacePacket().Deserialize(reader);
-                    Config.Register.GetBlockFromId(packet.Id).OnBlockPlace(Config.World, packet.GlobalBlockPosition);
+                    Register.GetBlockFromId(packet.Id).OnBlockPlace(Config.World, packet.GlobalBlockPosition);
                     
                     SendPacket(packet, fromPeer);
                     break;
@@ -152,7 +152,7 @@ public class Server : Networked
             while (player.LoadingQueue.TryDequeue(out Vector2i chunkPosition, out float priority))
             {
                 if (!Config.World.Chunks.ContainsKey(chunkPosition)) Config.World.Chunks.TryAdd(chunkPosition, new Chunk(chunkPosition));
-                Config.World.Generator.GeneratorQueue.Enqueue((chunkPosition.X, chunkPosition.Y, ChunkMath.ChebyshevDistance(chunkPosition, player.ChunkPosition)));
+                if (Config.World.Chunks[chunkPosition].Status != ChunkStatus.Done) Config.World.Generator.GeneratorQueue.Enqueue((chunkPosition.X, chunkPosition.Y, ChunkMath.ChebyshevDistance(chunkPosition, player.ChunkPosition)));
             }
         }
     }

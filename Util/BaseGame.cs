@@ -4,30 +4,30 @@ public class BaseGame : IMod
 {
     public static void OnLoad()
     {
-        Config.Register.RegisterBlock("air", new Block() { IsSolid = false });
-        Config.Register.RegisterBlock("grass", 
+        Register.RegisterBlock("air", new Block() { IsSolid = false });
+        Register.RegisterBlock("grass", 
             new Block()
                 .SetBlockModel(new BlockModel()
                     .AddCube(new Cube())
                     .SetTextureFace(0, Direction.Top, "grass_top")
                     .SetTextureSides(0, "grass_side")
                     .SetTextureFace(0, Direction.Bottom, "dirt")));
-        Config.Register.RegisterBlock("dirt", new Block().SetBlockModel(new BlockModel().AddCube(new Cube()).SetAllTextureFaces(0, "dirt")));
-        Config.Register.RegisterBlock("stone", new Block().SetBlockModel(new BlockModel().AddCube(new Cube()).SetAllTextureFaces(0, "stone")));
-        Config.Register.RegisterBlock("sand",
+        Register.RegisterBlock("dirt", new Block().SetBlockModel(new BlockModel().AddCube(new Cube()).SetAllTextureFaces(0, "dirt")));
+        Register.RegisterBlock("stone", new Block().SetBlockModel(new BlockModel().AddCube(new Cube()).SetAllTextureFaces(0, "stone")));
+        Register.RegisterBlock("sand",
             new Block() { IsSolid = true }
                 .SetBlockModel(new BlockModel()
                     .AddCube(new Cube((0, 0, 0), (1, 1, 1)))
                     .SetAllTextureFaces(0, "sand")));
-        Config.Register.RegisterBlock("pumpkin",
+        Register.RegisterBlock("pumpkin",
             new Block()
                 .SetBlockModel(new BlockModel()
                     .AddCube(new Cube())
                     .SetTextureFace(0, Direction.Top, "pumpkin_top")
                     .SetTextureFace(0, Direction.Bottom, "pumpkin_bottom")
                     .SetTextureSides(0, "pumpkin_face")));
-        Config.Register.RegisterBlock("water",
+        Register.RegisterBlock("water",
             new Block() { IsTransparent = true }.SetBlockModel(new BlockModel().AddCube(new Cube()).SetAllTextureFaces(0, "water")));
-        Config.Register.RegisterBlock("stone", new Block());
+        Register.RegisterBlock("lava", new Block() { IsTransparent = true }.SetBlockModel(new BlockModel().AddCube(new Cube()).SetAllTextureFaces(0, "lava")) );
     }
 }

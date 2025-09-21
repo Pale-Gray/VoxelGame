@@ -68,4 +68,10 @@ public class VectorMath
     {
         return (a.X <= b.X, a.Y <= b.Y, a.Z <= b.Z);
     }
+
+    public static int Flatten(Vector3i vector, int width, int height)
+    {
+        // yHeight is Config.ColumnSize * Config.ChunkSize.
+        return vector.Y + (vector.X * Config.ChunkSize * Config.ColumnSize) + (vector.Z * Config.ChunkSize * Config.ChunkSize * Config.ColumnSize);
+    }
 }

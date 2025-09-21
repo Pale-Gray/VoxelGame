@@ -33,6 +33,7 @@ public class ChunkSectionMesh
     public int TransparentIndicesLength;
     public int TransparentVbo, TransparentVao, TransparentIbo;
     public bool ShouldUpdate = true;
+    public Vector3i ChunkPosition;
 
     public void DrawSolid(Camera camera)
     {
