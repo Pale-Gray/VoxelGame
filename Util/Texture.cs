@@ -15,7 +15,7 @@ public class Texture
     
     public Texture(string path)
     {
-        _path = path;
+        _path = Path.Combine(path);
     }
 
     public Texture Generate(int mipmapCount = 4)

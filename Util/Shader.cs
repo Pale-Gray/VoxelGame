@@ -14,8 +14,8 @@ public unsafe class Shader
     private Dictionary<string, int> _cachedUniforms = new();
     public Shader(string vertexPath, string fragmentPath)
     {
-        _fragmentPath = fragmentPath;
-        _vertexPath = vertexPath;
+        _fragmentPath = Path.Combine(fragmentPath);
+        _vertexPath = Path.Combine(vertexPath);
     }
 
     public Shader Compile()
