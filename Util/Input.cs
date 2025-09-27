@@ -81,6 +81,11 @@ public class Input
         return _currentMouseButtonsDown[mouseButton] && !_previousMouseButtonsDown[mouseButton];
     }
 
+    public static bool IsMouseButtonReleased(MouseButton mouseButton)
+    {
+        return !_currentMouseButtonsDown[mouseButton] && _previousMouseButtonsDown[mouseButton];
+    }
+
     public static bool IsKeyDown(Key key)
     {
         return _currentKeysDown[key];
@@ -89,5 +94,10 @@ public class Input
     public static bool IsKeyPressed(Key key)
     {
         return _currentKeysDown[key] && !_previousKeysDown[key];
+    }
+
+    public static bool IsKeyReleased(Key key)
+    {
+        return !_currentKeysDown[key] && _previousKeysDown[key];
     }
 }

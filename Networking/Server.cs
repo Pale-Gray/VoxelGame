@@ -151,7 +151,10 @@ public class Server : Networked
 
             while (player.LoadingQueue.TryDequeue(out Vector2i chunkPosition, out float priority))
             {
-                if (!Config.World.Chunks.ContainsKey(chunkPosition)) Config.World.Chunks.TryAdd(chunkPosition, new Chunk(chunkPosition));
+                if (!Config.World.Chunks.ContainsKey(chunkPosition))
+                {
+                    Config.World.Chunks.TryAdd(chunkPosition, new Chunk(chunkPosition));
+                }
                 if (Config.World.Chunks[chunkPosition].Status != ChunkStatus.Done) Config.World.Generator.GeneratorQueue.Enqueue((chunkPosition.X, chunkPosition.Y, ChunkMath.ChebyshevDistance(chunkPosition, player.ChunkPosition)));
             }
         }

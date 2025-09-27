@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using VoxelGame.Networking;
@@ -25,6 +26,8 @@ public class World
 
     public void Draw(Camera camera)
     {
+        // draw solid
+        Config.Gbuffer.Bind();
         Config.ChunkShader.Bind();
         GL.ActiveTexture(TextureUnit.Texture0);
         GL.BindTexture(TextureTarget.Texture2d, Config.Atlas.Id);
@@ -32,6 +35,45 @@ public class World
         GL.UniformMatrix4f(Config.ChunkShader.GetUniformLocation("uView"), 1, true, ref camera.View);
         GL.Uniform1f(Config.ChunkShader.GetUniformLocation("uTexture"), 0);
         
+        GL.ClearColor(0, 0, 0, 0);
+        GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit | ClearBufferMask.StencilBufferBit);
+        foreach (Chunk chunk in Chunks.Values)
+        {
+            for (int i = 0; i < chunk.ChunkMeshes.Length; i++)
+            {
+                GL.Uniform1f(Config.ChunkShader.GetUniformLocation("uDrawTime"), chunk.ElapsedTime);
+                GL.Uniform3f(Config.ChunkShader.GetUniformLocation("uChunkPosition"), chunk.Position.X, 0, chunk.Position.Y);
+                if (chunk.ChunkMeshes[i].SolidVerticesLength > 0) chunk.ChunkMeshes[i].DrawSolid(camera);
+            }
+        }
+        Config.Gbuffer.Unbind();
+        Config.Gbuffer.Draw();
+        
+        // draw transparent
+        Config.Gbuffer.Bind();
+        Config.ChunkShader.Bind();
+        GL.ActiveTexture(TextureUnit.Texture0);
+        GL.BindTexture(TextureTarget.Texture2d, Config.Atlas.Id);
+        GL.UniformMatrix4f(Config.ChunkShader.GetUniformLocation("uProjection"), 1, true, ref camera.Projection);
+        GL.UniformMatrix4f(Config.ChunkShader.GetUniformLocation("uView"), 1, true, ref camera.View);
+        GL.Uniform1f(Config.ChunkShader.GetUniformLocation("uTexture"), 0);
+        GL.ClearColor(0, 0, 0, 0);
+        GL.Clear(ClearBufferMask.ColorBufferBit);
+        GL.DepthMask(false);
+        foreach (Chunk chunk in Chunks.Values)
+        {
+            for (int i = 0; i < chunk.ChunkMeshes.Length; i++)
+            {
+                GL.Uniform1f(Config.ChunkShader.GetUniformLocation("uDrawTime"), chunk.ElapsedTime);
+                GL.Uniform3f(Config.ChunkShader.GetUniformLocation("uChunkPosition"), chunk.Position.X, 0, chunk.Position.Y);
+                if (chunk.ChunkMeshes[i].TransparentVerticesLength > 0) chunk.ChunkMeshes[i].DrawTransparent(camera);
+            }
+        }
+        GL.DepthMask(true);
+        Config.Gbuffer.Unbind();
+        Config.Gbuffer.Draw();
+        
+        /*
         foreach (Chunk column in Chunks.Values)
         {
             bool drawable = false;
@@ -42,16 +84,28 @@ public class World
 
             if (drawable) column.ElapsedTime += Config.DeltaTime;
             
-            for (int i = 0; i < column.ChunkMeshes.Length; i++)
-            {
-                GL.Uniform1f(Config.ChunkShader.GetUniformLocation("uDrawTime"), column.ElapsedTime);
-                GL.Uniform3f(Config.ChunkShader.GetUniformLocation("uChunkPosition"), column.Position.X, 0, column.Position.Y);
-                if (column.ChunkMeshes[i].SolidVerticesLength > 0) column.ChunkMeshes[i].DrawSolid(camera);
-                GL.Disable(EnableCap.CullFace);
-                if (column.ChunkMeshes[i].TransparentVerticesLength > 0) column.ChunkMeshes[i].DrawTransparent(camera);
-                GL.Enable(EnableCap.CullFace);
-            }
+            // for (int i = 0; i < column.ChunkMeshes.Length; i++)
+            // {
+            //     GL.Uniform1f(Config.ChunkShader.GetUniformLocation("uDrawTime"), column.ElapsedTime);
+            //     GL.Uniform3f(Config.ChunkShader.GetUniformLocation("uChunkPosition"), column.Position.X, 0, column.Position.Y);
+            //     if (column.ChunkMeshes[i].SolidVerticesLength > 0) column.ChunkMeshes[i].DrawSolid(camera);
+            // }
+            // 
+            // for (int i = 0; i < column.ChunkMeshes.Length; i++)
+            // {
+            //     GL.Uniform1f(Config.ChunkShader.GetUniformLocation("uDrawTime"), column.ElapsedTime);
+            //     GL.Uniform3f(Config.ChunkShader.GetUniformLocation("uChunkPosition"), column.Position.X, 0, column.Position.Y);
+            //     // if (column.ChunkMeshes[i].SolidVerticesLength > 0) column.ChunkMeshes[i].DrawSolid(camera);
+            //     GL.Disable(EnableCap.CullFace);
+            //     if (column.ChunkMeshes[i].TransparentVerticesLength > 0) column.ChunkMeshes[i].DrawTransparent(camera);
+            //     GL.Enable(EnableCap.CullFace);
+            // }
         }
+        */
+        
+        // Config.Gbuffer.Unbind();
+        
+        // Config.Gbuffer.Draw();
     }
 
     public string GetBlockId(Vector3i globalBlockPosition)

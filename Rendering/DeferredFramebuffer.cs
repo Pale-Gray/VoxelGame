@@ -1,4 +1,6 @@
+using System;
 using OpenTK.Graphics.OpenGL;
+using OpenTK.Graphics.Vulkan;
 
 namespace VoxelGame.Rendering;
 
@@ -7,9 +9,16 @@ public class DeferredFramebuffer
     private int _framebuffer;
     private int _depthTexture;
     private int _albedoTexture;
-    private int _transparentAlbedoTexture;
     private int _normalTexture;
-    private FramebufferQuad _quad;
+    private float[] _vertices =
+    {
+        0.0f, 1.0f,
+        0.0f, 0.0f,
+        1.0f, 0.0f,
+        1.0f, 0.0f,
+        1.0f, 1.0f,
+        0.0f, 1.0f
+    };
 
     public void Create()
     {
@@ -40,12 +49,9 @@ public class DeferredFramebuffer
         GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2d, _albedoTexture, 0);
         GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment1, TextureTarget.Texture2d, _normalTexture, 0);
         GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthStencilAttachment, TextureTarget.Texture2d, _depthTexture, 0);
-        
+
         GL.DrawBuffers(2, [DrawBufferMode.ColorAttachment0, DrawBufferMode.ColorAttachment1]);
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-
-        _quad = new FramebufferQuad();
-        _quad.Create();
     }
 
     public void Bind()
@@ -68,14 +74,38 @@ public class DeferredFramebuffer
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
 
-    public void Draw() => _quad.Draw(this);
+    public void Draw()
+    {
+        int vao, vbo;
+
+        vao = GL.GenVertexArray();
+        GL.BindVertexArray(vao);
+
+        vbo = GL.GenBuffer();
+        GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
+        GL.BufferData(BufferTarget.ArrayBuffer, _vertices.Length * sizeof(float), _vertices, BufferUsage.StaticDraw);
+
+        GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 2 * sizeof(float), 0);
+        GL.EnableVertexAttribArray(0);
+        
+        Config.GbufferShader.Bind();
+        BindTextures();
+        GL.Disable(EnableCap.DepthTest);
+        GL.Uniform1i(Config.GbufferShader.GetUniformLocation("uAlbedo"), 0);
+        GL.Uniform1i(Config.GbufferShader.GetUniformLocation("uNormal"), 1);
+        GL.Uniform1i(Config.GbufferShader.GetUniformLocation("uDepthStencil"), 2);
+        GL.DrawArrays(PrimitiveType.Triangles, 0, _vertices.Length);
+        GL.Enable(EnableCap.DepthTest);
+        
+        GL.DeleteBuffer(vbo);
+        GL.DeleteVertexArray(vao);
+    }
 
     public void Destroy()
     {
         GL.DeleteTexture(_albedoTexture);
         GL.DeleteTexture(_depthTexture);
         GL.DeleteTexture(_normalTexture);
-        GL.DeleteTexture(_transparentAlbedoTexture);
         GL.DeleteFramebuffer(_framebuffer);
     }
 

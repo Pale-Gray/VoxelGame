@@ -66,8 +66,8 @@ public class Client : Networked
         Config.Atlas = new DynamicAtlas("resources/textures/blocks").Generate();
         BaseGame.OnLoad();
 
-        Config.Framebuffer = new DeferredFramebuffer();
-        Config.Framebuffer.Create();
+        Config.Gbuffer = new DeferredFramebuffer();
+        Config.Gbuffer.Create();
         GL.Viewport(0, 0, Config.Width, Config.Height);
         GL.Enable(EnableCap.DepthTest);
         // GL.DepthFunc(DepthFunction.Less);
@@ -81,6 +81,7 @@ public class Client : Networked
         // Console.WriteLine($"Max image texture size: {GL.GetInteger(GetPName.MaxTextureSize)}");
         
         Config.ChunkShader = new Shader("resources/shaders/shad.vert", "resources/shaders/shad.frag").Compile();
+        Config.GbufferShader = new Shader("resources/shaders/framebuffer.vert", "resources/shaders/framebuffer.frag").Compile();
         shad = new Shader("resources/shaders/vshad.vert", "resources/shaders/vshad.frag").Compile();
 
         Input.Init();
@@ -217,8 +218,7 @@ public class Client : Networked
         Toolkit.Window.ProcessEvents(false);
         // if (Input.MouseDelta != Vector2.Zero) Console.WriteLine(Input.MouseDelta);
         
-        Config.Framebuffer.Bind();
-        GL.ClearColor(0, 0, 0, 0);
+        GL.ClearColor(Color4.Cornflowerblue);
         GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit | ClearBufferMask.StencilBufferBit);
 
         if (Toolkit.Window.IsWindowDestroyed(Config.Window))
@@ -300,18 +300,18 @@ public class Client : Networked
         
         if (ray.TryHit(Config.World, 10))
         {
-            GL.Disable(EnableCap.CullFace);
-            shad.Bind();
-            GL.Uniform3f(shad.GetUniformLocation("uPosition"), 1, ray.HitBlockPosition);
-            GL.UniformMatrix4f(shad.GetUniformLocation("uProjection"), 1, true, ref _player.Camera.Projection);
-            GL.UniformMatrix4f(shad.GetUniformLocation("uView"), 1, true, ref _player.Camera.View);
-            GL.BindVertexArray(vao);
-            
-            GL.Disable(EnableCap.DepthTest);
-            GL.DrawArrays(PrimitiveType.Lines, 0, vertices.Length);
-            
-            GL.Enable(EnableCap.DepthTest);
-            GL.Enable(EnableCap.CullFace);
+            // GL.Disable(EnableCap.CullFace);
+            // shad.Bind();
+            // GL.Uniform3f(shad.GetUniformLocation("uPosition"), 1, ray.HitBlockPosition);
+            // GL.UniformMatrix4f(shad.GetUniformLocation("uProjection"), 1, true, ref _player.Camera.Projection);
+            // GL.UniformMatrix4f(shad.GetUniformLocation("uView"), 1, true, ref _player.Camera.View);
+            // GL.BindVertexArray(vao);
+            // 
+            // GL.Disable(EnableCap.DepthTest);
+            // GL.DrawArrays(PrimitiveType.Lines, 0, vertices.Length);
+            // 
+            // GL.Enable(EnableCap.DepthTest);
+            // GL.Enable(EnableCap.CullFace);
 
             if (Input.IsMouseFocused)
             {
@@ -337,11 +337,6 @@ public class Client : Networked
             }
         }
         
-        Config.Framebuffer.Unbind();
-        
-        GL.ClearColor(100.0f / 255.0f, 129.0f / 255.0f, 237.0f / 255.0f, 1.0f);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-        Config.Framebuffer.Draw();
         double lastGenTime = double.Round(Config.LastGenTime.TotalMilliseconds, 2);
         double minGenTime = 0.0;
         double maxGenTime = 0.0;
@@ -369,7 +364,7 @@ public class Client : Networked
                   Last mesh time: {lastMeshTime}ms, Max mesh time: {maxMeshTime}ms, Min mesh time: {minMeshTime}ms, Avg mesh time: {avgMeshTime}ms
                   Position: {ChunkMath.PositionToBlockPosition(_player.Position)}
                   Seed: {Config.Seed}
-                  """, Gui.AsPixelPerfect((0, 0)), Gui.AsPixelPerfect(8.0f), Color3.White);
+                  """, Gui.ToAbsolute(Vector2.UnitY), Gui.AsPixelPerfect(8.0f), Color3.White);
         if (Gui.Button("I am a button", Gui.AsPixelPerfect((100, 100)), Gui.AsPixelPerfect((80 + float.Floor(float.Abs(float.Sin(Config.ElapsedTime) * 10)), 20 + float.Floor(float.Abs(float.Cos(Config.ElapsedTime) * 20)))), Gui.AsPixelPerfect((4, 4)))) Environment.Exit(0);
         Toolkit.OpenGL.SwapBuffers(Config.OpenGLContext);
         Toolkit.Window.SetTitle(Config.Window, $"position: {ChunkMath.PositionToBlockPosition(_player.Position)} size: ({Config.Width}, {Config.Height}), avg fps: {Config.AverageFps}, min fps: {Config.MinimumFps}, max fps: {Config.MaximumFps}");
@@ -422,7 +417,7 @@ public class Client : Networked
             _player.Camera.Height = Config.Height;
             
             GL.Viewport(0, 0, Config.Width, Config.Height);
-            Config.Framebuffer.Resize();
+            Config.Gbuffer.Resize();
         }
     }
 }

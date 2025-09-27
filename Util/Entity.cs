@@ -6,7 +6,7 @@ namespace VoxelGame;
 public class Entity
 {
     public Vector3 PreviousPosition;
-    
+
     public Vector3 Position;
     public Vector3 Velocity;
     public Vector3 Acceleration;

@@ -81,10 +81,10 @@ public static class Gui
             
             _vertices.AddRange
             (
-                new GuiVertex(rectangle.Position, top - (-rectangle.TextureCoordinatePosition.X, rectangle.TextureCoordinatePosition.Y), rectangle.Color),
-                new GuiVertex(rectangle.Position + (0, rectangle.Size.Y, 0), top - (-rectangle.TextureCoordinatePosition.X, rectangle.TextureCoordinatePosition.Y) + (0, -rectangle.TextureCoordinateSize.Y), rectangle.Color),
-                new GuiVertex(rectangle.Position + (rectangle.Size.X, rectangle.Size.Y, 0), top - (-rectangle.TextureCoordinatePosition.X, rectangle.TextureCoordinatePosition.Y) + (rectangle.TextureCoordinateSize.X, -rectangle.TextureCoordinateSize.Y), rectangle.Color),
-                new GuiVertex(rectangle.Position + (rectangle.Size.X, 0, 0), top - (-rectangle.TextureCoordinatePosition.X, rectangle.TextureCoordinatePosition.Y) + (rectangle.TextureCoordinateSize.X, 0), rectangle.Color)
+                new GuiVertex(rectangle.Position + (0, rectangle.Size.Y, 0), (rectangle.TextureCoordinatePosition.X, rectangle.TextureCoordinatePosition.Y + rectangle.TextureCoordinateSize.Y), rectangle.Color),
+                new GuiVertex(rectangle.Position, rectangle.TextureCoordinatePosition, rectangle.Color),
+                new GuiVertex(rectangle.Position + (rectangle.Size.X, 0, 0), (rectangle.TextureCoordinatePosition.X + rectangle.TextureCoordinateSize.X, rectangle.TextureCoordinatePosition.Y), rectangle.Color),
+                new GuiVertex(rectangle.Position + (rectangle.Size.X, rectangle.Size.Y, 0), rectangle.TextureCoordinatePosition + rectangle.TextureCoordinateSize, rectangle.Color)
             );
         }
 
@@ -127,7 +127,7 @@ public static class Gui
         GL.Disable(EnableCap.DepthTest);
         // GL.Disable(EnableCap.CullFace);
         _guiShader.Bind();
-        Matrix4 projection = Matrix4.CreateOrthographicOffCenter(0, Config.Width, Config.Height, 0, 0.1f, 100.0f);
+        Matrix4 projection = Matrix4.CreateOrthographicOffCenter(0, Config.Width, 0, Config.Height, 0.0f, 100.0f);
         GL.UniformMatrix4f(_guiShader.GetUniformLocation("uProjection"), 1, true, in projection);
         GL.ActiveTexture(TextureUnit.Texture0);
         GL.BindTexture(TextureTarget.Texture2d, _activeTexture.Id);
@@ -163,7 +163,7 @@ public static class Gui
             if (character == '\n')
             {
                 linePosition.X = 0;
-                linePosition.Y += advance.Y;
+                linePosition.Y -= advance.Y;
                 continue;
             }
 
@@ -179,12 +179,12 @@ public static class Gui
                 continue;
             }
             
-            textureCoordinateIndex = GlyphIndexToCoordinates(((Rune)character).Value);
+            textureCoordinateIndex = GlyphIndexToCoordinates(character);
 
             GuiRectangle glyphRectangle = new GuiRectangle();
             glyphRectangle.Position = (position.X, position.Y, 0) + (linePosition);
             glyphRectangle.Size = glyphSize * (size / 8.0f);
-            glyphRectangle.TextureCoordinatePosition = off + (_glyphTextureSize * textureCoordinateIndex);
+            glyphRectangle.TextureCoordinatePosition = (0 + (_glyphTextureSize * textureCoordinateIndex).X, 1.0f - _glyphTextureSize.Y - (_glyphTextureSize * textureCoordinateIndex).Y);
             glyphRectangle.TextureCoordinateSize = (glyphSize / _glyphSize) * _glyphTextureSize;
             glyphRectangle.Color = (Vector3) color;
                 
@@ -311,12 +311,12 @@ public static class Gui
         DrawRectangles();
         
         EnterContainer(position, size);
-        Text(text, ToAbsolute((0.5f, 0.5f)), AsPixelPerfect(8.0f), Color3.White, true);
+        Text(text, ToAbsolute((0.5f, 0.5f)), AsPixelPerfect(8.0f), Color3.Black, true);
         ResetContainer();
         
         if (intersected)
         {
-            return Input.IsMouseButtonPressed(MouseButton.Button1);
+            return Input.IsMouseButtonReleased(MouseButton.Button1);
         }
         return false;
     }
@@ -332,6 +332,9 @@ public static class Gui
     
     private static bool DoesIntersectRectangle(GuiRectangle rectangle)
     {
-        return Input.MousePosition.X > rectangle.Position.X && Input.MousePosition.X < rectangle.Position.X + rectangle.Size.X && Input.MousePosition.Y > rectangle.Position.Y && Input.MousePosition.Y < rectangle.Position.Y + rectangle.Size.Y;
+        Vector2 mousePosition = Input.MousePosition;
+        mousePosition.Y = Config.Height - mousePosition.Y;
+        
+        return mousePosition.X > rectangle.Position.X && mousePosition.X < rectangle.Position.X + rectangle.Size.X && mousePosition.Y > rectangle.Position.Y && mousePosition.Y < rectangle.Position.Y + rectangle.Size.Y;
     }
 }

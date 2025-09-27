@@ -23,7 +23,8 @@ public static class Config
     
     public static DynamicAtlas Atlas;
     public static Shader ChunkShader;
-    public static DeferredFramebuffer Framebuffer;
+    public static Shader GbufferShader;
+    public static DeferredFramebuffer Gbuffer;
     public static Random Random = new Random();
     public static Process CurrentProcess = Process.GetCurrentProcess();
 
@@ -53,5 +54,6 @@ public static class Config
     public static World World;
     public static Stopwatch StartTime;
 
+    // public static int Seed = 2018766363;
     public static int Seed = Random.Next();
 }
