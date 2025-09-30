@@ -6,7 +6,10 @@ uniform sampler2D uDepthStencil;
 uniform sampler2D uAlbedo;
 uniform sampler2D uNormal;
 
+uniform float uOpacity;
+
 in vec2 vPosition;
+uniform float uTime;
 
 vec3 lightDirection = normalize(vec3(-0.4, -1, 0.8));
 
@@ -34,5 +37,5 @@ void main()
     
     vec3 color = albedo;
     
-    fColor = vec4(color, albedoTexture.a < 1.0 ? 0.75 : 1.0);
+    fColor = vec4(color, albedoTexture.a);
 }

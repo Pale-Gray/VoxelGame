@@ -74,7 +74,7 @@ public class DeferredFramebuffer
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
 
-    public void Draw()
+    public void Draw(float opacity = 1.0f)
     {
         int vao, vbo;
 
@@ -91,11 +91,15 @@ public class DeferredFramebuffer
         Config.GbufferShader.Bind();
         BindTextures();
         GL.Disable(EnableCap.DepthTest);
+        GL.Enable(EnableCap.Blend);
         GL.Uniform1i(Config.GbufferShader.GetUniformLocation("uAlbedo"), 0);
         GL.Uniform1i(Config.GbufferShader.GetUniformLocation("uNormal"), 1);
         GL.Uniform1i(Config.GbufferShader.GetUniformLocation("uDepthStencil"), 2);
+        GL.Uniform1f(Config.GbufferShader.GetUniformLocation("uTime"), Config.ElapsedTime);
+        GL.Uniform1f(Config.GbufferShader.GetUniformLocation("uOpacity"), opacity);
         GL.DrawArrays(PrimitiveType.Triangles, 0, _vertices.Length);
         GL.Enable(EnableCap.DepthTest);
+        GL.Disable(EnableCap.Blend);
         
         GL.DeleteBuffer(vbo);
         GL.DeleteVertexArray(vao);

@@ -27,7 +27,7 @@ public class BaseGame : IMod
                     .SetTextureFace(0, Direction.Bottom, "pumpkin_bottom")
                     .SetTextureSides(0, "pumpkin_face")));
         Register.RegisterBlock("water",
-            new Block() { IsTransparent = true }.SetBlockModel(new BlockModel().AddCube(new Cube()).SetAllTextureFaces(0, "water")));
+            new Block() { IsTransparent = true }.SetBlockModel(new BlockModel().AddCube(new Cube()).SetAllTextureFaces(0, "water_2")));
         Register.RegisterBlock("lava", new Block() { IsTransparent = true }.SetBlockModel(new BlockModel().AddCube(new Cube()).SetAllTextureFaces(0, "lava")) );
     }
 }

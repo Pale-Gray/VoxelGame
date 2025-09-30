@@ -22,13 +22,11 @@ public class Block
     public virtual void OnBlockPlace(World world, Vector3i blockPosition)
     {
         world.SetBlock(blockPosition, this);
-        world.EnqueueChunksFromBlockPosition(blockPosition);
     }
 
     public virtual void OnBlockDestroy(World world, Vector3i blockPosition)
     {
         world.SetBlock(blockPosition);
-        world.EnqueueChunksFromBlockPosition(blockPosition);
     }
 
     public virtual void OnBlockMesh(World world, Vector3i blockPosition)

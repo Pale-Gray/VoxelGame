@@ -1,15 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading;
 
 namespace VoxelGame.Util;
 
-public class Logger
+public static class Logger
 {
     public static bool DoDisplayMessages = true;
     private static List<string> _messages = new();
@@ -36,9 +32,9 @@ public class Logger
         if (exception.StackTrace != null) _messages.Add(exception.StackTrace);
     }
 
-    public static void WriteToFile()
+    public static void WriteToFile(string path = "log.txt")
     {
-        using (StreamWriter stream = new StreamWriter(File.Open("log.txt", FileMode.Create)))
+        using (StreamWriter stream = new StreamWriter(File.Open(path, FileMode.Create)))
         {
             foreach (string msg in _messages) stream.WriteLine(msg);
         }

@@ -55,5 +55,6 @@ public static class Config
     public static Stopwatch StartTime;
 
     // public static int Seed = 2018766363;
-    public static int Seed = Random.Next();
+    // public static int Seed = Random.Next();
+    public static int Seed = 1639924240;
 }

@@ -46,6 +46,10 @@ public class Client : Networked
         Config.Window = Toolkit.Window.Create(contextSettings);
         Config.OpenGLContext = Toolkit.OpenGL.CreateFromWindow(Config.Window);
 
+        contextSettings.SupportTransparentFramebufferX11 = false;
+        Logger.Info($"Set transparent framebuffer: {contextSettings.SupportTransparentFramebufferX11}");
+        Logger.Info($"Does support transparent framebuffer? {Toolkit.Window.SupportsFramebufferTransparency(Config.Window)}");
+        
         DisplayHandle display = Toolkit.Display.OpenPrimary();
         Toolkit.Display.GetResolution(display, out Config.Width, out Config.Height);
         Config.Width /= 2;
@@ -56,7 +60,8 @@ public class Client : Networked
         Toolkit.Window.SetMode(Config.Window, WindowMode.Normal);
         Toolkit.Window.SetCursor(Config.Window, null);
         Toolkit.Window.SetCursorCaptureMode(Config.Window, CursorCaptureMode.Locked);
-        Toolkit.Window.SetTransparencyMode(Config.Window, WindowTransparencyMode.TransparentFramebuffer);
+        Toolkit.Window.SetTransparencyMode(Config.Window, WindowTransparencyMode.Opaque);
+        // Toolkit.Window.SetTransparencyMode(Config.Window, WindowTransparencyMode.TransparentFramebuffer);
         
         EventQueue.EventRaised += EventRaised;
 
@@ -74,8 +79,9 @@ public class Client : Networked
         GL.Enable(EnableCap.CullFace);
         GL.CullFace(TriangleFace.Back);
         GL.FrontFace(FrontFaceDirection.Ccw);
-        GL.Enable(EnableCap.Blend);
-        GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+        // GL.Enable(EnableCap.Blend);
+        GL.BlendFuncSeparate(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha, BlendingFactor.SrcAlpha, BlendingFactor.One);
+        // GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.One);
         GL.Enable(EnableCap.PolygonOffsetFill);
         GL.Enable(EnableCap.PolygonOffsetLine);
         // Console.WriteLine($"Max image texture size: {GL.GetInteger(GetPName.MaxTextureSize)}");
@@ -300,24 +306,27 @@ public class Client : Networked
         
         if (ray.TryHit(Config.World, 10))
         {
-            // GL.Disable(EnableCap.CullFace);
-            // shad.Bind();
-            // GL.Uniform3f(shad.GetUniformLocation("uPosition"), 1, ray.HitBlockPosition);
-            // GL.UniformMatrix4f(shad.GetUniformLocation("uProjection"), 1, true, ref _player.Camera.Projection);
-            // GL.UniformMatrix4f(shad.GetUniformLocation("uView"), 1, true, ref _player.Camera.View);
-            // GL.BindVertexArray(vao);
-            // 
-            // GL.Disable(EnableCap.DepthTest);
-            // GL.DrawArrays(PrimitiveType.Lines, 0, vertices.Length);
-            // 
-            // GL.Enable(EnableCap.DepthTest);
-            // GL.Enable(EnableCap.CullFace);
+            GL.Disable(EnableCap.CullFace);
+            shad.Bind();
+            GL.Uniform3f(shad.GetUniformLocation("uPosition"), ray.HitBlockPosition.X, ray.HitBlockPosition.Y, ray.HitBlockPosition.Z);
+            GL.UniformMatrix4f(shad.GetUniformLocation("uProjection"), 1, true, ref _player.Camera.Projection);
+            GL.UniformMatrix4f(shad.GetUniformLocation("uView"), 1, true, ref _player.Camera.View);
+            GL.BindVertexArray(vao);
+            
+            GL.Disable(EnableCap.DepthTest);
+            GL.DrawArrays(PrimitiveType.Lines, 0, vertices.Length);
+            
+            GL.Enable(EnableCap.DepthTest);
+            GL.Enable(EnableCap.CullFace);
 
             if (Input.IsMouseFocused)
             {
                 if (Input.IsMouseButtonPressed(MouseButton.Button2))
                 {
                     Register.GetBlockFromId("sand").OnBlockPlace(Config.World, ray.PreviousHitBlockPosition);
+                    // Config.World.EnqueueChunksFromBlockPosition(ray.PreviousHitBlockPosition);
+                    Config.World.Generator.UpdateChunk(ChunkMath.GlobalToChunk(ray.PreviousHitBlockPosition).Xz, ChunkStatus.Mesh, true);
+                    
                     BlockPlacePacket packet = new BlockPlacePacket();
                     packet.Id = "sand";
                     packet.GlobalBlockPosition = ray.PreviousHitBlockPosition;
@@ -328,6 +337,8 @@ public class Client : Networked
                 if (Input.IsMouseButtonPressed(MouseButton.Button1))
                 {
                     Register.GetBlockFromId(Config.World.GetBlockId(ray.HitBlockPosition)).OnBlockDestroy(Config.World, ray.HitBlockPosition);
+                    Config.World.Generator.UpdateChunk(ChunkMath.GlobalToChunk(ray.HitBlockPosition).Xz, ChunkStatus.Mesh, true);
+                    
                     BlockDestroyPacket packet = new BlockDestroyPacket();
                     packet.GlobalBlockPosition = ray.HitBlockPosition;
                     packet.Id = Config.World.GetBlockId(ray.HitBlockPosition);

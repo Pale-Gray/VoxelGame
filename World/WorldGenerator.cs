@@ -13,16 +13,21 @@ public class WorldGenerator
 {
     private World _world;
     private List<Thread> _generatorThreads = new();
-    private List<Thread> _meshThreads = new();
+    private Dictionary<int, AutoResetEvent> _generatorResetEvents = new();
     private AutoResetEvent _generatorResetEvent = new AutoResetEvent(true);
-    private AutoResetEvent _meshResetEvent = new AutoResetEvent(true);
     public bool ShouldMesh = false;
     private bool _shouldRun = true;
 
     public ConcurrentQueue<Vector3i> GeneratorQueue = new();
+    public ConcurrentQueue<Vector3i> HighPriorityGeneratorQueue = new(); 
+    
     public ConcurrentQueue<Vector3i> MeshQueue = new();
+    public ConcurrentQueue<Vector3i> HighPriorityMeshQueue = new();
     
     public ConcurrentQueue<Vector2i> UploadQueue = new();
+    public ConcurrentQueue<Vector2i> HighPriorityUploadQueue = new();
+    
+    // TODO: separate threads per process? (gen, light, mesh)
     
     public WorldGenerator(World world, bool shouldMesh = true)
     {
@@ -35,6 +40,7 @@ public class WorldGenerator
         for (int i = 0; i < 4; i++)
         {
             _generatorThreads.Add(new Thread(HandleGenerationQueue) { IsBackground = true });
+            _generatorResetEvents.Add(_generatorThreads[i].ManagedThreadId, new AutoResetEvent(true));
             _generatorThreads[i].Name = "Generation Thread";
             _generatorThreads[i].Start();
             
@@ -59,58 +65,34 @@ public class WorldGenerator
 
     public void Poll()
     {
-        // if (GenerationQueue.Count > 0 || MeshQueue.Count > 0) _generatorResetEvent.Set();
-        if (GeneratorQueue.Count > 0) _generatorResetEvent.Set();
-        if (MeshQueue.Count > 0) _generatorResetEvent.Set();
+        if (GeneratorQueue.Count + HighPriorityGeneratorQueue.Count + MeshQueue.Count + HighPriorityMeshQueue.Count > 0)
+        {
+            foreach (AutoResetEvent resetEvent in _generatorResetEvents.Values)
+            {
+                resetEvent.Set();
+            }
+        }
         
-        while (UploadQueue.TryDequeue(out Vector2i position))
+        while (HighPriorityUploadQueue.TryDequeue(out Vector2i position) || UploadQueue.TryDequeue(out position))
         {
             // if (UploadQueue.Contains(position)) continue;
             
             // Monitor.Enter(_world.Chunks[position]);
             // _world.Chunks[position].Mutex.WaitOne();
             UploadMesh(_world.Chunks[position]);
+            _world.Chunks[position].HasPriority = false;
             // _world.Chunks[position].Mutex.ReleaseMutex();
             // Monitor.Exit(_world.Chunks[position]);
         }
     }
 
-    private void HandleMeshQueue()
+    public void UpdateChunk(Vector2i chunkPosition, ChunkStatus status = ChunkStatus.Empty, bool enablePriority = false)
     {
-        Logger.Info("Hello from mesh thread");
-        
-        while (_shouldRun)
+        if (_world.Chunks.TryGetValue(chunkPosition, out Chunk chunk))
         {
-            _meshResetEvent.WaitOne();
-            while (MeshQueue.TryDequeue(out Vector3i sample))
-            {
-                Vector2i position = sample.Xy;
-                int distance = sample.Z;
-
-                if (_world.Chunks.TryGetValue(position, out Chunk chunk))
-                {
-                    Monitor.Enter(chunk);
-                    switch (chunk.Status)
-                    {
-                        case ChunkStatus.Mesh:
-                            if (distance < Config.Radius)
-                            {
-                                if (AreNeighborsTheSameStatus(position, ChunkStatus.Mesh))
-                                {
-                                    GenerateMesh(_world, chunk);
-                                    chunk.Status = ChunkStatus.Upload;
-                                    UploadQueue.Enqueue(position);
-                                }
-                                else
-                                {
-                                    MeshQueue.Enqueue(sample);
-                                }
-                            }
-                            break;
-                    }
-                    Monitor.Exit(chunk);
-                }
-            }
+            if (status != ChunkStatus.Empty) chunk.Status = status;
+            if (enablePriority) chunk.HasPriority = true;
+            HighPriorityGeneratorQueue.Enqueue((chunk.Position.X, chunk.Position.Y, 0));
         }
     }
 
@@ -121,8 +103,9 @@ public class WorldGenerator
         
         while (_shouldRun)
         {
-            _generatorResetEvent.WaitOne();
-            if (GeneratorQueue.TryDequeue(out Vector3i generationSample))
+            // _generatorResetEvent.WaitOne();
+            _generatorResetEvents[Thread.CurrentThread.ManagedThreadId].WaitOne();
+            if (HighPriorityGeneratorQueue.TryDequeue(out Vector3i generationSample) || GeneratorQueue.TryDequeue(out generationSample))
             {
                 position = generationSample.Xy;
                 distance = generationSample.Z;
@@ -135,24 +118,37 @@ public class WorldGenerator
                         case ChunkStatus.Empty:
                             GenerateChunk(chunk);
                             chunk.Status = ChunkStatus.Mesh;
-                            MeshQueue.Enqueue(generationSample);
+                            if (chunk.HasPriority)
+                            {
+                                HighPriorityMeshQueue.Enqueue(generationSample);
+                            }
+                            else
+                            {
+                                MeshQueue.Enqueue(generationSample);
+                            }
                             break;
                         case ChunkStatus.Mesh:
-                            MeshQueue.Enqueue(generationSample);
+                            if (chunk.HasPriority)
+                            {
+                                HighPriorityMeshQueue.Enqueue(generationSample);
+                            }
+                            else
+                            {
+                                MeshQueue.Enqueue(generationSample);
+                            }
                             break;
                     }
                     // Monitor.Exit(chunk);
                 }
             }
 
-            if (MeshQueue.TryDequeue(out Vector3i meshSample))
+            if (HighPriorityMeshQueue.TryDequeue(out Vector3i meshSample) || MeshQueue.TryDequeue(out meshSample))
             {
                 position = meshSample.Xy;
                 distance = meshSample.Z;
                 
                 if (_world.Chunks.TryGetValue(position, out Chunk chunk))
                 {
-                    // Monitor.Enter(chunk);
                     switch (chunk.Status)
                     {
                         case ChunkStatus.Mesh:
@@ -160,10 +156,8 @@ public class WorldGenerator
                             {
                                 if (AreNeighborsTheSameStatus(position, ChunkStatus.Mesh))
                                 {
-                                    Monitor.Enter(chunk);
-                                    GenerateMesh(_world, chunk);
+                                    GenerateMesh(Config.World, chunk);
                                     chunk.Status = ChunkStatus.Upload;
-                                    Monitor.Exit(chunk);
                                     UploadQueue.Enqueue(position);
                                 }
                                 else
@@ -173,7 +167,6 @@ public class WorldGenerator
                             }
                             break;
                     }
-                    // Monitor.Exit(chunk);
                 }
             }
         }
@@ -214,14 +207,16 @@ public class WorldGenerator
     {
         Vector3i offset = new Vector3i(chunk.Position.X, 0, chunk.Position.Y) * Config.ChunkSize;
 
-        Vector3i step = new Vector3i(16, 16, 16);
-        Vector3i arraySize = Noise.NoiseSizeValue3(step, (Config.ChunkSize, Config.ChunkSize * Config.ColumnSize, Config.ChunkSize));
-        Span<float> densityOneNoise = stackalloc float[arraySize.X * arraySize.Y * arraySize.Z];
-        Noise.PregenerateValue3(densityOneNoise, Config.Seed + 0, step, arraySize, offset, new Vector3(16.0f), true, 8);
-        Span<float> densityTwoNoise = stackalloc float[arraySize.X * arraySize.Y * arraySize.Z];
-        Noise.PregenerateValue3(densityTwoNoise, Config.Seed + 1, step, arraySize, offset, new Vector3(16.0f), true, 8);
+        Vector3i step = new Vector3i(8);
+        Vector3i arraySize = Noise.NoiseSizeValue3(step, new Vector3i(Config.ChunkSize, Config.ChunkSize * Config.ColumnSize, Config.ChunkSize));
+        Span<float> densityOneArray = stackalloc float[arraySize.X * arraySize.Y * arraySize.Z];
+        Span<float> densityTwoArray = stackalloc float[arraySize.X * arraySize.Y * arraySize.Z];
         Span<float> densitySelectorNoise = stackalloc float[arraySize.X * arraySize.Y * arraySize.Z];
-        Noise.PregenerateValue3(densitySelectorNoise, Config.Seed + 2, step, arraySize, offset, new Vector3(16.0f), false, 8);
+        
+        Noise.PregenerateValue3(densityOneArray, Config.Seed, step, arraySize, offset, new Vector3(128), true, 8);
+        Noise.PregenerateValue3(densityTwoArray, Config.Seed + 1, step, arraySize, offset, new Vector3(128), true, 8);
+        Noise.PregenerateValue3(densitySelectorNoise, Config.Seed + 2, step, arraySize, offset, new Vector3(32), false, 4);
+        
         Vector3i globalBlockPosition = Vector3i.Zero;
         
         for (int x = 0; x < Config.ChunkSize; x++)
@@ -230,34 +225,29 @@ public class WorldGenerator
             {
                 globalBlockPosition.Xz = (x, z) + (Config.ChunkSize * chunk.Position);
 
-                float continentality = Noise.Value2(Config.Seed + 3, (Vector2)globalBlockPosition.Xz / 256.0f, false, 4);
-                continentality = ScaleClampNormalize(continentality, 5.0f);
-
-                float flatness = Noise.Value2(Config.Seed + 4, (Vector2)globalBlockPosition.Xz / 64.0f, true, 4);
-                flatness = ScaleClampNormalize(flatness, 1.0f);
+                float flatness = Noise.Value2(Config.Seed + 2, (Vector2)globalBlockPosition.Xz / 128.0f, true, 4);
+                // flatness = ScaleClampNormalize(flatness, 5.0f);
+                flatness = (flatness + 1.0f) * 0.5f;
+                flatness = Maths.SmoothMap(0.0f, 1.0f, 0.25f, 0.75f, flatness);
                 
                 for (int y = (Config.ChunkSize * Config.ColumnSize) - 1; y >= 0; y--)
                 {
                     globalBlockPosition.Y = y;
 
-                    float densitySelector = Noise.Value3(densitySelectorNoise, new Vector3(x, y, z) / step, arraySize);
+                    Vector3 pos = (x, y, z) / (Vector3) step;
+
+                    float densityOne = Noise.Value3(densityOneArray, pos, arraySize);
+                    float densityTwo = Noise.Value3(densityTwoArray, pos, arraySize);
+                    float densitySelector = Noise.Value3(densitySelectorNoise, pos, arraySize);
                     densitySelector = ScaleClampNormalize(densitySelector, 10.0f);
-
-                    float density = float.Lerp(Noise.Value3(densityOneNoise, new Vector3(x, y, z) / step, arraySize), Noise.Value3(densityTwoNoise, new Vector3(x, y, z) / step, arraySize), densitySelector);
-                    density = (density + 1.0f) * 0.5f;
-
-                    float yHeight = Remap(y, 256 - float.Lerp(127, 16, continentality * (1.0f - flatness)), 128 - float.Lerp(32.0f, 0.0f, continentality));
                     
-                    if (density + yHeight > 1.0f)
+                    float density = float.Lerp(densityOne, densityTwo, densitySelector);
+                    float yHeight = Maths.InverseLerp(y, 256, 128);
+                    density *= Maths.Map(1.0f, 0.1f, 0.75f, 1.0f, flatness);
+                    
+                    if (density + yHeight >= 1.0f)
                     {
-                        if (y <= 128 + 4)
-                        {
-                            chunk.SetBlock((x, y, z), Register.GetBlockFromId("sand"));
-                        }
-                        else
-                        {
-                            chunk.SetBlock((x, y, z), Register.GetBlockFromId("stone"));
-                        }
+                        chunk.SetBlock((x, y, z), Register.GetBlockFromId("stone"));
                     } else if (y <= 128)
                     {
                         chunk.SetBlock((x,y,z), Register.GetBlockFromId("water"));
@@ -270,18 +260,20 @@ public class WorldGenerator
         {
             for (int z = 0; z < Config.ChunkSize; z++)
             {
+                globalBlockPosition.Xz = (x, z) + (Config.ChunkSize * chunk.Position);
+                
                 for (int y = (Config.ChunkSize * Config.ColumnSize) - 1; y >= 0; y--)
                 {
-                    if (chunk.GetBlockId((x,y,z)) != "sand" && chunk.GetSolid((x, y, z)) && !chunk.GetSolid((x, y + 1, z)) && !chunk.GetTransparent((x, y + 1, z)) && !chunk.GetTransparent((x, y, z)))
-                    {
-                        for (int i = 1; i <= 3; i++)
-                        {
-                            if (!chunk.GetSolid((x, y - i, z))) break;
+                    globalBlockPosition.Y = y;
 
+                    if (!chunk.GetTransparent((x,y,z)) && chunk.GetSolid((x,y,z)) && !chunk.GetSolid((x,y + 1,z)))
+                    {
+                        for (int i = 0; i < 5; i++)
+                        {
                             chunk.SetBlock((x, y - i, z), Register.GetBlockFromId("dirt"));
                         }
-
-                        chunk.SetBlock(new Vector3i(x, y, z), Register.GetBlockFromId("grass"));
+                        
+                        chunk.SetBlock((x, y, z), Register.GetBlockFromId("grass"));
                     }
                 }
             }
@@ -324,6 +316,9 @@ public class WorldGenerator
             ChunkSectionMesh mesh = chunk.ChunkMeshes[i];
             // if (!mesh.ShouldUpdate || chunk.ChunkSections[i].IsEmpty) continue;
             // if (!mesh.ShouldUpdate) continue;
+            // if (!mesh.ShouldUpdate) continue;
+            // mesh.ShouldUpdate = false;
+            
             mesh.SolidVertices.Clear();
             mesh.SolidIndices.Clear();
             mesh.TransparentVertices.Clear();

@@ -59,7 +59,8 @@ public class World
         GL.Uniform1f(Config.ChunkShader.GetUniformLocation("uTexture"), 0);
         GL.ClearColor(0, 0, 0, 0);
         GL.Clear(ClearBufferMask.ColorBufferBit);
-        GL.DepthMask(false);
+        GL.Disable(EnableCap.CullFace);
+        // GL.DepthMask(false);
         foreach (Chunk chunk in Chunks.Values)
         {
             for (int i = 0; i < chunk.ChunkMeshes.Length; i++)
@@ -69,43 +70,10 @@ public class World
                 if (chunk.ChunkMeshes[i].TransparentVerticesLength > 0) chunk.ChunkMeshes[i].DrawTransparent(camera);
             }
         }
-        GL.DepthMask(true);
+        GL.Enable(EnableCap.CullFace);
+        // GL.DepthMask(true);
         Config.Gbuffer.Unbind();
-        Config.Gbuffer.Draw();
-        
-        /*
-        foreach (Chunk column in Chunks.Values)
-        {
-            bool drawable = false;
-            for (int i = 0; i < column.ChunkMeshes.Length; i++)
-            {
-                if (column.ChunkMeshes[i].SolidVerticesLength > 0 || column.ChunkMeshes[i].TransparentVerticesLength > 0) drawable = true;
-            }
-
-            if (drawable) column.ElapsedTime += Config.DeltaTime;
-            
-            // for (int i = 0; i < column.ChunkMeshes.Length; i++)
-            // {
-            //     GL.Uniform1f(Config.ChunkShader.GetUniformLocation("uDrawTime"), column.ElapsedTime);
-            //     GL.Uniform3f(Config.ChunkShader.GetUniformLocation("uChunkPosition"), column.Position.X, 0, column.Position.Y);
-            //     if (column.ChunkMeshes[i].SolidVerticesLength > 0) column.ChunkMeshes[i].DrawSolid(camera);
-            // }
-            // 
-            // for (int i = 0; i < column.ChunkMeshes.Length; i++)
-            // {
-            //     GL.Uniform1f(Config.ChunkShader.GetUniformLocation("uDrawTime"), column.ElapsedTime);
-            //     GL.Uniform3f(Config.ChunkShader.GetUniformLocation("uChunkPosition"), column.Position.X, 0, column.Position.Y);
-            //     // if (column.ChunkMeshes[i].SolidVerticesLength > 0) column.ChunkMeshes[i].DrawSolid(camera);
-            //     GL.Disable(EnableCap.CullFace);
-            //     if (column.ChunkMeshes[i].TransparentVerticesLength > 0) column.ChunkMeshes[i].DrawTransparent(camera);
-            //     GL.Enable(EnableCap.CullFace);
-            // }
-        }
-        */
-        
-        // Config.Gbuffer.Unbind();
-        
-        // Config.Gbuffer.Draw();
+        Config.Gbuffer.Draw(0.75f);
     }
 
     public string GetBlockId(Vector3i globalBlockPosition)
@@ -166,6 +134,8 @@ public class World
                 }
 
                 chunk.Status = ChunkStatus.Mesh;
+                // Generator.UpdateChunk(chunk.Position, ChunkStatus.Mesh, true);
+                // Generator.GeneratorQueue.Enqueue((chunkPosition.X, chunkPosition.Z, 0));
                 // Generator.EnqueueChunk(chunkPosition.Xz, ChunkStatus.Mesh, true);
             }
         }
