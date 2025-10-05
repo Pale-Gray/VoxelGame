@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlockGame-OpenTK", "BlockGame-OpenTK.csproj", "{08EF0393-262A-474C-87A9-CB9D85720A14}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VoxelGame", "VoxelGame.csproj", "{08EF0393-262A-474C-87A9-CB9D85720A14}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
