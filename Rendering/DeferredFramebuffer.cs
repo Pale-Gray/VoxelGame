@@ -9,6 +9,7 @@ public class DeferredFramebuffer
     private int _framebuffer;
     private int _depthTexture;
     private int _albedoTexture;
+    private int _lightTexture;
     private int _normalTexture;
     private float[] _vertices =
     {
@@ -31,6 +32,13 @@ public class DeferredFramebuffer
         GL.TexParameteri(TextureTarget.Texture2d, TextureParameterName.TextureMinFilter, (int) TextureMinFilter.Linear);
         GL.TexParameteri(TextureTarget.Texture2d, TextureParameterName.TextureMagFilter, (int) TextureMagFilter.Linear);
         GL.ObjectLabel(ObjectIdentifier.Texture, (uint)_albedoTexture, -1, "albedo");
+
+        _lightTexture = GL.GenTexture();
+        GL.BindTexture(TextureTarget.Texture2d, _lightTexture);
+        GL.TexStorage2D(TextureTarget.Texture2d, 1, SizedInternalFormat.Rgba8, Config.Width, Config.Height);
+        GL.TexParameteri(TextureTarget.Texture2d, TextureParameterName.TextureMinFilter, (int) TextureMinFilter.Linear);
+        GL.TexParameteri(TextureTarget.Texture2d, TextureParameterName.TextureMagFilter, (int) TextureMagFilter.Linear);
+        GL.ObjectLabel(ObjectIdentifier.Texture, (uint)_lightTexture, -1, "light");
         
         _normalTexture = GL.GenTexture();
         GL.BindTexture(TextureTarget.Texture2d, _normalTexture);
@@ -48,9 +56,10 @@ public class DeferredFramebuffer
         
         GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2d, _albedoTexture, 0);
         GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment1, TextureTarget.Texture2d, _normalTexture, 0);
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment2, TextureTarget.Texture2d, _lightTexture, 0);
         GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthStencilAttachment, TextureTarget.Texture2d, _depthTexture, 0);
 
-        GL.DrawBuffers(2, [DrawBufferMode.ColorAttachment0, DrawBufferMode.ColorAttachment1]);
+        GL.DrawBuffers(3, [DrawBufferMode.ColorAttachment0, DrawBufferMode.ColorAttachment1, DrawBufferMode.ColorAttachment2]);
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
 
@@ -67,6 +76,8 @@ public class DeferredFramebuffer
         GL.BindTexture(TextureTarget.Texture2d, _normalTexture);
         GL.ActiveTexture(TextureUnit.Texture2);
         GL.BindTexture(TextureTarget.Texture2d, _depthTexture);
+        GL.ActiveTexture(TextureUnit.Texture3);
+        GL.BindTexture(TextureTarget.Texture2d, _lightTexture);
     }
 
     public void Unbind()
@@ -95,6 +106,7 @@ public class DeferredFramebuffer
         GL.Uniform1i(Config.GbufferShader.GetUniformLocation("uAlbedo"), 0);
         GL.Uniform1i(Config.GbufferShader.GetUniformLocation("uNormal"), 1);
         GL.Uniform1i(Config.GbufferShader.GetUniformLocation("uDepthStencil"), 2);
+        GL.Uniform1i(Config.GbufferShader.GetUniformLocation("uLight"), 3);
         GL.Uniform1f(Config.GbufferShader.GetUniformLocation("uTime"), Config.ElapsedTime);
         GL.Uniform1f(Config.GbufferShader.GetUniformLocation("uOpacity"), opacity);
         GL.DrawArrays(PrimitiveType.Triangles, 0, _vertices.Length);

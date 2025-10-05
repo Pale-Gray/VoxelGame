@@ -1,9 +1,5 @@
-using System;
 using System.Collections.Generic;
-using System.Numerics;
 using OpenTK.Mathematics;
-using Vector2 = OpenTK.Mathematics.Vector2;
-using Vector3 = OpenTK.Mathematics.Vector3;
 
 namespace VoxelGame;
 
@@ -108,7 +104,7 @@ public class BlockModel
         return this;
     }
 
-    public void AddFace(List<ChunkVertex> data, Direction faceDirection, Vector3i offset)
+    public void AddFace(List<ChunkVertex> data, Direction faceDirection, Vector3i offset, Vector4 lightValues)
     {
         foreach (Cube cube in _cubes)
         {
@@ -130,10 +126,10 @@ public class BlockModel
                     portion = cube.TopFace;
                     
                     data.AddRange(
-                        new ChunkVertex(topLeft + offset, Vector3.UnitY, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Top], portion).TopLeft),
-                        new ChunkVertex(bottomLeft + offset, Vector3.UnitY, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Top], portion).BottomLeft),
-                        new ChunkVertex(bottomRight + offset, Vector3.UnitY, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Top], portion).BottomRight),
-                        new ChunkVertex(topRight + offset, Vector3.UnitY, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Top], portion).TopRight)
+                        new ChunkVertex(topLeft + offset, Vector3.UnitY, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Top], portion).TopLeft, lightValues),
+                        new ChunkVertex(bottomLeft + offset, Vector3.UnitY, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Top], portion).BottomLeft, lightValues),
+                        new ChunkVertex(bottomRight + offset, Vector3.UnitY, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Top], portion).BottomRight, lightValues),
+                        new ChunkVertex(topRight + offset, Vector3.UnitY, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Top], portion).TopRight, lightValues)
                     );
                     break;
                 case Direction.Bottom:
@@ -145,10 +141,10 @@ public class BlockModel
                     portion = cube.BottomFace;
                     
                     data.AddRange(
-                        new ChunkVertex(topLeft + offset, -Vector3.UnitY, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Bottom], portion).TopLeft),
-                        new ChunkVertex(bottomLeft + offset, -Vector3.UnitY, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Bottom], portion).BottomLeft),
-                        new ChunkVertex(bottomRight + offset, -Vector3.UnitY, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Bottom], portion).BottomRight),
-                        new ChunkVertex(topRight + offset, -Vector3.UnitY, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Bottom], portion).TopRight)    
+                        new ChunkVertex(topLeft + offset, -Vector3.UnitY, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Bottom], portion).TopLeft, lightValues),
+                        new ChunkVertex(bottomLeft + offset, -Vector3.UnitY, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Bottom], portion).BottomLeft, lightValues),
+                        new ChunkVertex(bottomRight + offset, -Vector3.UnitY, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Bottom], portion).BottomRight, lightValues),
+                        new ChunkVertex(topRight + offset, -Vector3.UnitY, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Bottom], portion).TopRight, lightValues)    
                     );
                     break;
                 case Direction.Front:
@@ -160,10 +156,10 @@ public class BlockModel
                     portion = cube.FrontFace;
                     
                     data.AddRange(  
-                        new ChunkVertex(topLeft + offset, -Vector3.UnitZ, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Front], portion).TopLeft),
-                        new ChunkVertex(bottomLeft + offset, -Vector3.UnitZ, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Front], portion).BottomLeft),
-                        new ChunkVertex(bottomRight + offset, -Vector3.UnitZ, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Front], portion).BottomRight),
-                        new ChunkVertex(topRight + offset, -Vector3.UnitZ, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Front], portion).TopRight)
+                        new ChunkVertex(topLeft + offset, -Vector3.UnitZ, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Front], portion).TopLeft, lightValues),
+                        new ChunkVertex(bottomLeft + offset, -Vector3.UnitZ, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Front], portion).BottomLeft, lightValues),
+                        new ChunkVertex(bottomRight + offset, -Vector3.UnitZ, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Front], portion).BottomRight, lightValues),
+                        new ChunkVertex(topRight + offset, -Vector3.UnitZ, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Front], portion).TopRight, lightValues)
                     );
                     break;
                 case Direction.Back:
@@ -175,10 +171,10 @@ public class BlockModel
                     portion = cube.BackFace;
                     
                     data.AddRange(  
-                        new ChunkVertex(topLeft + offset, Vector3.UnitZ, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Back], portion).TopLeft),
-                        new ChunkVertex(bottomLeft + offset, Vector3.UnitZ, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Back], portion).BottomLeft),
-                        new ChunkVertex(bottomRight + offset, Vector3.UnitZ, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Back], portion).BottomRight),
-                        new ChunkVertex(topRight + offset, Vector3.UnitZ, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Back], portion).TopRight)
+                        new ChunkVertex(topLeft + offset, Vector3.UnitZ, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Back], portion).TopLeft, lightValues),
+                        new ChunkVertex(bottomLeft + offset, Vector3.UnitZ, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Back], portion).BottomLeft, lightValues),
+                        new ChunkVertex(bottomRight + offset, Vector3.UnitZ, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Back], portion).BottomRight, lightValues),
+                        new ChunkVertex(topRight + offset, Vector3.UnitZ, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Back], portion).TopRight, lightValues)
                     );
                     break;
                 case Direction.Left:
@@ -190,10 +186,10 @@ public class BlockModel
                     portion = cube.LeftFace;
                     
                     data.AddRange(  
-                        new ChunkVertex(topLeft + offset, -Vector3.UnitX, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Left], portion).TopLeft),
-                        new ChunkVertex(bottomLeft + offset, -Vector3.UnitX, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Left], portion).BottomLeft),
-                        new ChunkVertex(bottomRight + offset, -Vector3.UnitX, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Left], portion).BottomRight),
-                        new ChunkVertex(topRight + offset, -Vector3.UnitX, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Left], portion).TopRight)
+                        new ChunkVertex(topLeft + offset, -Vector3.UnitX, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Left], portion).TopLeft, lightValues),
+                        new ChunkVertex(bottomLeft + offset, -Vector3.UnitX, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Left], portion).BottomLeft, lightValues),
+                        new ChunkVertex(bottomRight + offset, -Vector3.UnitX, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Left], portion).BottomRight, lightValues),
+                        new ChunkVertex(topRight + offset, -Vector3.UnitX, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Left], portion).TopRight, lightValues)
                     );
                     break;
                 case Direction.Right:
@@ -205,10 +201,10 @@ public class BlockModel
                     portion = cube.RightFace;
                     
                     data.AddRange(  
-                        new ChunkVertex(topLeft + offset, Vector3.UnitX, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Right], portion).TopLeft),
-                        new ChunkVertex(bottomLeft + offset, Vector3.UnitX, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Right], portion).BottomLeft),
-                        new ChunkVertex(bottomRight + offset, Vector3.UnitX, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Right], portion).BottomRight),
-                        new ChunkVertex(topRight + offset, Vector3.UnitX, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Right], portion).TopRight)
+                        new ChunkVertex(topLeft + offset, Vector3.UnitX, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Right], portion).TopLeft, lightValues),
+                        new ChunkVertex(bottomLeft + offset, Vector3.UnitX, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Right], portion).BottomLeft, lightValues),
+                        new ChunkVertex(bottomRight + offset, Vector3.UnitX, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Right], portion).BottomRight, lightValues),
+                        new ChunkVertex(topRight + offset, Vector3.UnitX, Config.Atlas.GetTextureCoordinates(cube.FaceResourceLocations[(int)Direction.Right], portion).TopRight, lightValues)
                     );
                     break;
             }

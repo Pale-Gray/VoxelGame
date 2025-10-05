@@ -5,6 +5,7 @@ out vec4 fColor;
 uniform sampler2D uDepthStencil;
 uniform sampler2D uAlbedo;
 uniform sampler2D uNormal;
+uniform sampler2D uLight;
 
 uniform float uOpacity;
 
@@ -26,6 +27,7 @@ void main()
     vec4 albedoTexture = texelFetch(uAlbedo, textureCoordinate, 0);
     vec4 normalTexture = texelFetch(uNormal, textureCoordinate, 0);
     vec4 depthStencilTexture = texelFetch(uDepthStencil, textureCoordinate, 0);
+    vec4 lightTexture = texelFetch(uLight, textureCoordinate, 0);
     
     if (albedoTexture.a == 0.0) discard;
     
@@ -36,6 +38,7 @@ void main()
     albedo *= mix(0.5, 1.0, dot(max(normal, vec3(0)) + 1.0 / 2.0, -lightDirection));
     
     vec3 color = albedo;
+    color *= mix(vec3(0.1), vec3(1.0), max(lightTexture.rgb, lightTexture.www));
     
     fColor = vec4(color, albedoTexture.a);
 }

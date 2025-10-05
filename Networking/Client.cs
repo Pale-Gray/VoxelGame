@@ -86,7 +86,7 @@ public class Client : Networked
         GL.Enable(EnableCap.PolygonOffsetLine);
         // Console.WriteLine($"Max image texture size: {GL.GetInteger(GetPName.MaxTextureSize)}");
         
-        Config.ChunkShader = new Shader("resources/shaders/shad.vert", "resources/shaders/shad.frag").Compile();
+        Config.ChunkShader = new Shader("resources/shaders/chunk.vert", "resources/shaders/chunk.frag").Compile();
         Config.GbufferShader = new Shader("resources/shaders/framebuffer.vert", "resources/shaders/framebuffer.frag").Compile();
         shad = new Shader("resources/shaders/vshad.vert", "resources/shaders/vshad.frag").Compile();
 
@@ -172,7 +172,7 @@ public class Client : Networked
         if (!isInternal)
         {
             Config.World = new World();
-            Config.World.Generator.ShouldMesh = true;
+            // Config.World.Generator.ShouldMesh = true;
             Config.World.Generator.Start();
         }
 
@@ -325,7 +325,8 @@ public class Client : Networked
                 {
                     Register.GetBlockFromId("sand").OnBlockPlace(Config.World, ray.PreviousHitBlockPosition);
                     // Config.World.EnqueueChunksFromBlockPosition(ray.PreviousHitBlockPosition);
-                    Config.World.Generator.UpdateChunk(ChunkMath.GlobalToChunk(ray.PreviousHitBlockPosition).Xz, ChunkStatus.Mesh, true);
+                    // Config.World.Generator.UpdateChunk(ChunkMath.GlobalToChunk(ray.PreviousHitBlockPosition).Xz, ChunkStatus.Mesh, true);
+                    Config.World.Generator.UpdateChunk(ChunkMath.GlobalToChunk(ray.PreviousHitBlockPosition).Xz, 0, ChunkStatus.Mesh, true);
                     
                     BlockPlacePacket packet = new BlockPlacePacket();
                     packet.Id = "sand";
@@ -337,7 +338,8 @@ public class Client : Networked
                 if (Input.IsMouseButtonPressed(MouseButton.Button1))
                 {
                     Register.GetBlockFromId(Config.World.GetBlockId(ray.HitBlockPosition)).OnBlockDestroy(Config.World, ray.HitBlockPosition);
-                    Config.World.Generator.UpdateChunk(ChunkMath.GlobalToChunk(ray.HitBlockPosition).Xz, ChunkStatus.Mesh, true);
+                    // Config.World.Generator.UpdateChunk(ChunkMath.GlobalToChunk(ray.HitBlockPosition).Xz, ChunkStatus.Mesh, true);
+                    Config.World.Generator.UpdateChunk(ChunkMath.GlobalToChunk(ray.PreviousHitBlockPosition).Xz, 0, ChunkStatus.Mesh, true);
                     
                     BlockDestroyPacket packet = new BlockDestroyPacket();
                     packet.GlobalBlockPosition = ray.HitBlockPosition;

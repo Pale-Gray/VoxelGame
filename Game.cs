@@ -1,13 +1,7 @@
 ﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading;
-using OpenTK.Graphics.Egl;
-using OpenTK.Mathematics;
 using VoxelGame.Networking;
 using VoxelGame.Util;
 
@@ -24,7 +18,7 @@ class Game
         Thread.CurrentThread.Name = "Main Thread";
         AppDomain.CurrentDomain.UnhandledException += UnhandledException;
         
-        if (args.Length > 0)
+        if (args.Length > 0) 
         {
             string argument = args[0];
             if (argument == "server")

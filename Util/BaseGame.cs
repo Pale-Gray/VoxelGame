@@ -15,7 +15,7 @@ public class BaseGame : IMod
         Register.RegisterBlock("dirt", new Block().SetBlockModel(new BlockModel().AddCube(new Cube()).SetAllTextureFaces(0, "dirt")));
         Register.RegisterBlock("stone", new Block().SetBlockModel(new BlockModel().AddCube(new Cube()).SetAllTextureFaces(0, "stone")));
         Register.RegisterBlock("sand",
-            new Block() { IsSolid = true }
+            new SandBlock() { IsSolid = true }
                 .SetBlockModel(new BlockModel()
                     .AddCube(new Cube((0, 0, 0), (1, 1, 1)))
                     .SetAllTextureFaces(0, "sand")));

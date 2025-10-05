@@ -127,7 +127,9 @@ public class Server : Networked
             if (ChunkMath.GlobalToChunk(ChunkMath.PositionToBlockPosition(player.Position)).Xz != player.ChunkPosition)
             {
                 Config.World.Generator.GeneratorQueue.Clear();
+                Config.World.Generator.HighPriorityGeneratorQueue.Clear();
                 Config.World.Generator.MeshQueue.Clear();
+                Config.World.Generator.HighPriorityMeshQueue.Clear();
                 foreach (Player pl in ConnectedPlayers.Values) pl.NeedsToUpdateLoad = true;
             }
             
@@ -155,7 +157,8 @@ public class Server : Networked
                 {
                     Config.World.Chunks.TryAdd(chunkPosition, new Chunk(chunkPosition));
                 }
-                if (Config.World.Chunks[chunkPosition].Status != ChunkStatus.Done) Config.World.Generator.GeneratorQueue.Enqueue((chunkPosition.X, chunkPosition.Y, ChunkMath.ChebyshevDistance(chunkPosition, player.ChunkPosition)));
+                // if (Config.World.Chunks[chunkPosition].Status != ChunkStatus.Done) Config.World.Generator.GeneratorQueue.Enqueue((chunkPosition.X, chunkPosition.Y, ChunkMath.ChebyshevDistance(chunkPosition, player.ChunkPosition)));
+                if (Config.World.Chunks[chunkPosition].Status != ChunkStatus.Done) Config.World.Generator.UpdateChunk(chunkPosition, ChunkMath.ChebyshevDistance(chunkPosition, player.ChunkPosition), Config.World.Chunks[chunkPosition].Status);
             }
         }
     }

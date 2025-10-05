@@ -12,14 +12,16 @@ namespace VoxelGame;
 public class WorldGenerator
 {
     private World _world;
-    private List<Thread> _generatorThreads = new();
-    private Dictionary<int, AutoResetEvent> _generatorResetEvents = new();
-    private AutoResetEvent _generatorResetEvent = new AutoResetEvent(true);
-    public bool ShouldMesh = false;
-    private bool _shouldRun = true;
+    private bool _isRunning = true;
+
+    private AutoResetEvent _resetEvent = new AutoResetEvent(true);
+    private List<Thread> _threads = new();
 
     public ConcurrentQueue<Vector3i> GeneratorQueue = new();
-    public ConcurrentQueue<Vector3i> HighPriorityGeneratorQueue = new(); 
+    public ConcurrentQueue<Vector3i> HighPriorityGeneratorQueue = new();
+
+    public ConcurrentQueue<Vector3i> LightQueue = new();
+    public ConcurrentQueue<Vector3i> HighPriorityLightQueue = new();
     
     public ConcurrentQueue<Vector3i> MeshQueue = new();
     public ConcurrentQueue<Vector3i> HighPriorityMeshQueue = new();
@@ -27,145 +29,153 @@ public class WorldGenerator
     public ConcurrentQueue<Vector2i> UploadQueue = new();
     public ConcurrentQueue<Vector2i> HighPriorityUploadQueue = new();
     
-    // TODO: separate threads per process? (gen, light, mesh)
-    
     public WorldGenerator(World world, bool shouldMesh = true)
     {
         _world = world;
-        ShouldMesh = shouldMesh;
     }
 
-    public WorldGenerator Start()
+    public void Start()
     {
         for (int i = 0; i < 4; i++)
         {
-            _generatorThreads.Add(new Thread(HandleGenerationQueue) { IsBackground = true });
-            _generatorResetEvents.Add(_generatorThreads[i].ManagedThreadId, new AutoResetEvent(true));
-            _generatorThreads[i].Name = "Generation Thread";
-            _generatorThreads[i].Start();
-            
-            // _meshThreads.Add(new Thread(HandleMeshQueue) { IsBackground = true});
-            // _meshThreads[i].Name = "Meshing Thread";
-            // _meshThreads[i].Start();
+            _threads.Add(new Thread(Process) { Name = "Chunk Process Thread", IsBackground = true});
+            _threads[i].Start();
         }
-        
-        return this;
     }
 
-    public WorldGenerator Stop()
+    public void Stop()
     {
-        _shouldRun = false;
-        // foreach (Thread thr in _generatorThreads)
-        // {
-        //     while (thr.IsAlive) _generatorResetEvent.Set();
-        // }
-
-        return this;
+        _isRunning = false;
     }
 
     public void Poll()
     {
-        if (GeneratorQueue.Count + HighPriorityGeneratorQueue.Count + MeshQueue.Count + HighPriorityMeshQueue.Count > 0)
-        {
-            foreach (AutoResetEvent resetEvent in _generatorResetEvents.Values)
-            {
-                resetEvent.Set();
-            }
-        }
+        if (HighPriorityMeshQueue.Count + MeshQueue.Count + HighPriorityGeneratorQueue.Count + GeneratorQueue.Count > 0) _resetEvent.Set();
         
         while (HighPriorityUploadQueue.TryDequeue(out Vector2i position) || UploadQueue.TryDequeue(out position))
         {
-            // if (UploadQueue.Contains(position)) continue;
-            
-            // Monitor.Enter(_world.Chunks[position]);
-            // _world.Chunks[position].Mutex.WaitOne();
             UploadMesh(_world.Chunks[position]);
             _world.Chunks[position].HasPriority = false;
-            // _world.Chunks[position].Mutex.ReleaseMutex();
-            // Monitor.Exit(_world.Chunks[position]);
         }
     }
 
-    public void UpdateChunk(Vector2i chunkPosition, ChunkStatus status = ChunkStatus.Empty, bool enablePriority = false)
+    public void UpdateChunk(Vector2i chunkPosition, int distance, ChunkStatus status = ChunkStatus.Empty, bool enablePriority = false)
     {
         if (_world.Chunks.TryGetValue(chunkPosition, out Chunk chunk))
         {
             if (status != ChunkStatus.Empty) chunk.Status = status;
-            if (enablePriority) chunk.HasPriority = true;
-            HighPriorityGeneratorQueue.Enqueue((chunk.Position.X, chunk.Position.Y, 0));
+            chunk.HasPriority = enablePriority;
+            switch (chunk.Status)
+            {
+                case ChunkStatus.Empty:
+                    if (chunk.HasPriority)
+                    {
+                        HighPriorityGeneratorQueue.Enqueue((chunkPosition.X, chunkPosition.Y, distance));
+                    }
+                    else
+                    {
+                        GeneratorQueue.Enqueue((chunkPosition.X, chunkPosition.Y, distance));
+                    }
+                    break;
+                case ChunkStatus.Mesh:
+                    if (chunk.HasPriority)
+                    {
+                        HighPriorityMeshQueue.Enqueue((chunkPosition.X, chunkPosition.Y, distance));
+                    }
+                    else
+                    {
+                        MeshQueue.Enqueue((chunkPosition.X, chunkPosition.Y, distance));
+                    }
+                    break;
+            }
         }
     }
 
-    private void HandleGenerationQueue()
+    private void Process()
     {
+        Vector3i sample;
         Vector2i position;
         int distance;
         
-        while (_shouldRun)
+        while (_isRunning)
         {
-            // _generatorResetEvent.WaitOne();
-            _generatorResetEvents[Thread.CurrentThread.ManagedThreadId].WaitOne();
-            if (HighPriorityGeneratorQueue.TryDequeue(out Vector3i generationSample) || GeneratorQueue.TryDequeue(out generationSample))
+            _resetEvent.WaitOne();
+            if (HighPriorityGeneratorQueue.TryDequeue(out sample) || GeneratorQueue.TryDequeue(out sample))
             {
-                position = generationSample.Xy;
-                distance = generationSample.Z;
-                
+                position = sample.Xy;
+                distance = sample.Z;
+
                 if (_world.Chunks.TryGetValue(position, out Chunk chunk))
                 {
-                    // Monitor.Enter(chunk);
-                    switch (chunk.Status)
+                    GenerateChunk(chunk);
+                    chunk.Status = ChunkStatus.Light;
+                    if (chunk.HasPriority)
                     {
-                        case ChunkStatus.Empty:
-                            GenerateChunk(chunk);
-                            chunk.Status = ChunkStatus.Mesh;
-                            if (chunk.HasPriority)
-                            {
-                                HighPriorityMeshQueue.Enqueue(generationSample);
-                            }
-                            else
-                            {
-                                MeshQueue.Enqueue(generationSample);
-                            }
-                            break;
-                        case ChunkStatus.Mesh:
-                            if (chunk.HasPriority)
-                            {
-                                HighPriorityMeshQueue.Enqueue(generationSample);
-                            }
-                            else
-                            {
-                                MeshQueue.Enqueue(generationSample);
-                            }
-                            break;
+                        HighPriorityLightQueue.Enqueue(sample);
                     }
-                    // Monitor.Exit(chunk);
+                    else
+                    {
+                        LightQueue.Enqueue(sample);
+                    }
                 }
             }
 
-            if (HighPriorityMeshQueue.TryDequeue(out Vector3i meshSample) || MeshQueue.TryDequeue(out meshSample))
+            if (HighPriorityLightQueue.TryDequeue(out sample) || LightQueue.TryDequeue(out sample))
             {
-                position = meshSample.Xy;
-                distance = meshSample.Z;
-                
-                if (_world.Chunks.TryGetValue(position, out Chunk chunk))
+                position = sample.Xy;
+                distance = sample.Z;
+
+                if (distance < Config.Radius)
                 {
-                    switch (chunk.Status)
+                    if (_world.Chunks.TryGetValue(position, out Chunk chunk))
                     {
-                        case ChunkStatus.Mesh:
-                            if (distance < Config.Radius)
+                        if (AreNeighborsTheSameStatus(position, ChunkStatus.Light))
+                        {
+                            ProcessLights(_world, chunk);
+                            chunk.Status = ChunkStatus.Mesh;
+                            if (chunk.HasPriority)
                             {
-                                if (AreNeighborsTheSameStatus(position, ChunkStatus.Mesh))
-                                {
-                                    GenerateMesh(Config.World, chunk);
-                                    chunk.Status = ChunkStatus.Upload;
-                                    UploadQueue.Enqueue(position);
-                                }
-                                else
-                                {
-                                    MeshQueue.Enqueue(meshSample);
-                                }
+                                HighPriorityMeshQueue.Enqueue(sample);
                             }
-                            break;
+                            else
+                            {
+                                MeshQueue.Enqueue(sample);
+                            }
+                        }
+                        else
+                        {
+                            LightQueue.Enqueue(sample);
+                        }
+                    }
+                }
+            }
+
+            if (HighPriorityMeshQueue.TryDequeue(out sample) || MeshQueue.TryDequeue(out sample))
+            {
+                position = sample.Xy;
+                distance = sample.Z;
+
+                if (distance < Config.Radius - 1)
+                {
+                    if (_world.Chunks.TryGetValue(position, out Chunk chunk))
+                    {
+                        if (AreNeighborsTheSameStatus(position, ChunkStatus.Mesh))
+                        {
+                            GenerateMesh(_world, chunk);
+                            chunk.Status = ChunkStatus.Upload;
+                            if (chunk.HasPriority)
+                            {
+                                HighPriorityUploadQueue.Enqueue(position);                            
+                            }
+                            else
+                            {
+                                UploadQueue.Enqueue(position);
+                            }
+                        }
+                        else
+                        {
+                            MeshQueue.Enqueue(sample);
+                        }
                     }
                 }
             }
@@ -247,10 +257,12 @@ public class WorldGenerator
                     
                     if (density + yHeight >= 1.0f)
                     {
-                        chunk.SetBlock((x, y, z), Register.GetBlockFromId("stone"));
+                        Register.GetBlockFromId("stone").OnBlockPlace(_world, globalBlockPosition);
+                        // chunk.SetBlock((x, y, z), Register.GetBlockFromId("stone"));
                     } else if (y <= 128)
                     {
-                        chunk.SetBlock((x,y,z), Register.GetBlockFromId("water"));
+                        Register.GetBlockFromId("water").OnBlockPlace(_world, globalBlockPosition);
+                        // chunk.SetBlock((x,y,z), Register.GetBlockFromId("water"));
                     }
                 }
             }
@@ -261,6 +273,7 @@ public class WorldGenerator
             for (int z = 0; z < Config.ChunkSize; z++)
             {
                 globalBlockPosition.Xz = (x, z) + (Config.ChunkSize * chunk.Position);
+                float rand = Noise.FloatRandom2(123, globalBlockPosition.Xz);
                 
                 for (int y = (Config.ChunkSize * Config.ColumnSize) - 1; y >= 0; y--)
                 {
@@ -270,46 +283,239 @@ public class WorldGenerator
                     {
                         for (int i = 0; i < 5; i++)
                         {
-                            chunk.SetBlock((x, y - i, z), Register.GetBlockFromId("dirt"));
+                            if (!chunk.GetSolid((x, y - i, z))) break;
+                            Register.GetBlockFromId("dirt").OnBlockPlace(_world, globalBlockPosition - Vector3i.UnitY * i);
+                            // chunk.SetBlock((x, y - i, z), Register.GetBlockFromId("dirt"));
                         }
                         
-                        chunk.SetBlock((x, y, z), Register.GetBlockFromId("grass"));
+                        Register.GetBlockFromId(rand > 0.95 ? "sand" : "grass").OnBlockPlace(_world, globalBlockPosition);
+                        // chunk.SetBlock((x, y, z), Register.GetBlockFromId("grass"));
                     }
+                }
+            }
+        }
+
+        for (int x = 0; x < Config.ChunkSize; x++)
+        {
+            for (int z = 0; z < Config.ChunkSize; z++)
+            {
+                globalBlockPosition.Xz = (x, z) + (Config.ChunkSize * chunk.Position);
+                
+                if (!chunk.GetSolid((x, (Config.ChunkSize * Config.ColumnSize) - 1, z)))
+                {
+                    chunk.SetSunlightValue((x, (Config.ChunkSize * Config.ColumnSize) - 1, z), 15);
+                    chunk.SunlightAdditionQueue.Enqueue((globalBlockPosition.X, (Config.ChunkSize * Config.ColumnSize) - 1, globalBlockPosition.Z));
                 }
             }
         }
     }
 
-    float WeirdCurve(float value, float start, float end, float slope)
+    private void ProcessLights(World world, Chunk chunk)
     {
-        float val = -float.Cos((2.0f * float.Pi) * (float.Clamp(value, start, end) / end - start) - ((2.0f * float.Pi) / end - start));
+        while (chunk.SunlightAdditionQueue.TryDequeue(out Vector3i globalBlockPosition))
+        {
+            ushort currentCell = world.SunlightValueAt(globalBlockPosition);
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition - Vector3i.UnitY))
+            {
+                if (currentCell == 15)
+                {
+                    world.SetSunlightValue(globalBlockPosition - Vector3i.UnitY, currentCell);
+                    chunk.SunlightAdditionQueue.Enqueue(globalBlockPosition - Vector3i.UnitY);
+                    // world.AddSunlight(globalBlockPosition - Vector3i.UnitY, currentCell);
+                }
+                else if (world.SunlightValueAt(globalBlockPosition - Vector3i.UnitY) + 2 <= currentCell)
+                {
+                    world.SetSunlightValue(globalBlockPosition - Vector3i.UnitY, (ushort) (currentCell - 1));
+                    chunk.SunlightAdditionQueue.Enqueue(globalBlockPosition - Vector3i.UnitY);
+                    // world.AddSunlight(globalBlockPosition - Vector3i.UnitY, (ushort) (currentCell - 1));
+                }
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition + Vector3i.UnitY) && world.SunlightValueAt(globalBlockPosition + Vector3i.UnitY) + 2 <= currentCell)
+            {
+                world.SetSunlightValue(globalBlockPosition + Vector3i.UnitY, (ushort) (currentCell - 1));
+                chunk.SunlightAdditionQueue.Enqueue(globalBlockPosition + Vector3i.UnitY);
+                // world.AddSunlight(globalBlockPosition + Vector3i.UnitY, (ushort) (currentCell - 1));
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition + Vector3i.UnitX) && world.SunlightValueAt(globalBlockPosition + Vector3i.UnitX) + 2 <= currentCell)
+            {
+                world.SetSunlightValue(globalBlockPosition + Vector3i.UnitX, (ushort) (currentCell - 1));
+                chunk.SunlightAdditionQueue.Enqueue(globalBlockPosition + Vector3i.UnitX);
+                // world.AddSunlight(globalBlockPosition + Vector3i.UnitX, (ushort) (currentCell - 1));
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition - Vector3i.UnitX) && world.SunlightValueAt(globalBlockPosition - Vector3i.UnitX) + 2 <= currentCell)
+            {
+                world.SetSunlightValue(globalBlockPosition - Vector3i.UnitX, (ushort) (currentCell - 1));
+                chunk.SunlightAdditionQueue.Enqueue(globalBlockPosition - Vector3i.UnitX);
+                // world.AddSunlight(globalBlockPosition - Vector3i.UnitX, (ushort) (currentCell - 1));
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition + Vector3i.UnitZ) && world.SunlightValueAt(globalBlockPosition + Vector3i.UnitZ) + 2 <= currentCell)
+            {
+                world.SetSunlightValue(globalBlockPosition + Vector3i.UnitZ, (ushort) (currentCell - 1));
+                chunk.SunlightAdditionQueue.Enqueue(globalBlockPosition + Vector3i.UnitZ);
+                // world.AddSunlight(globalBlockPosition + Vector3i.UnitZ, (ushort) (currentCell - 1));
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition - Vector3i.UnitZ) && world.SunlightValueAt(globalBlockPosition - Vector3i.UnitZ) + 2 <= currentCell)
+            {
+                world.SetSunlightValue(globalBlockPosition - Vector3i.UnitZ, (ushort) (currentCell - 1));
+                chunk.SunlightAdditionQueue.Enqueue(globalBlockPosition - Vector3i.UnitZ);
+                // world.AddSunlight(globalBlockPosition - Vector3i.UnitZ, (ushort) (currentCell - 1));
+            }
+        }
         
-        return value * val;
+        while (chunk.RedLightAdditionQueue.TryDequeue(out Vector3i globalBlockPosition))
+        {
+            ushort currentCell = world.RedLightValueAt(globalBlockPosition);
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition - Vector3i.UnitY) && world.RedLightValueAt(globalBlockPosition - Vector3i.UnitY) + 2 <= currentCell)
+            {
+                world.SetRedLightValue(globalBlockPosition - Vector3i.UnitY, (ushort) (currentCell - 1));
+                chunk.RedLightAdditionQueue.Enqueue(globalBlockPosition + Vector3i.UnitY);
+                // world.AddSunlight(globalBlockPosition + Vector3i.UnitY, (ushort) (currentCell - 1));RedL
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition + Vector3i.UnitY) && world.RedLightValueAt(globalBlockPosition + Vector3i.UnitY) + 2 <= currentCell)
+            {
+                world.SetRedLightValue(globalBlockPosition + Vector3i.UnitY, (ushort) (currentCell - 1));
+                chunk.RedLightAdditionQueue.Enqueue(globalBlockPosition + Vector3i.UnitY);
+                // world.AddSunlight(globalBlockPosition + Vector3i.UnitY, (ushort) (currentCell - 1));
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition + Vector3i.UnitX) && world.RedLightValueAt(globalBlockPosition + Vector3i.UnitX) + 2 <= currentCell)
+            {
+                world.SetRedLightValue(globalBlockPosition + Vector3i.UnitX, (ushort) (currentCell - 1));
+                chunk.RedLightAdditionQueue.Enqueue(globalBlockPosition + Vector3i.UnitX);
+                // world.AddSunlight(globalBlockPosition + Vector3i.UnitX, (ushort) (currentCell - 1));
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition - Vector3i.UnitX) && world.RedLightValueAt(globalBlockPosition - Vector3i.UnitX) + 2 <= currentCell)
+            {
+                world.SetRedLightValue(globalBlockPosition - Vector3i.UnitX, (ushort) (currentCell - 1));
+                chunk.RedLightAdditionQueue.Enqueue(globalBlockPosition - Vector3i.UnitX);
+                // world.AddSunlight(globalBlockPosition - Vector3i.UnitX, (ushort) (currentCell - 1));
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition + Vector3i.UnitZ) && world.RedLightValueAt(globalBlockPosition + Vector3i.UnitZ) + 2 <= currentCell)
+            {
+                world.SetRedLightValue(globalBlockPosition + Vector3i.UnitZ, (ushort) (currentCell - 1));
+                chunk.RedLightAdditionQueue.Enqueue(globalBlockPosition + Vector3i.UnitZ);
+                // world.AddSunlight(globalBlockPosition + Vector3i.UnitZ, (ushort) (currentCell - 1));
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition - Vector3i.UnitZ) && world.RedLightValueAt(globalBlockPosition - Vector3i.UnitZ) + 2 <= currentCell)
+            {
+                world.SetRedLightValue(globalBlockPosition - Vector3i.UnitZ, (ushort) (currentCell - 1));
+                chunk.RedLightAdditionQueue.Enqueue(globalBlockPosition - Vector3i.UnitZ);
+                // world.AddSunlight(globalBlockPosition - Vector3i.UnitZ, (ushort) (currentCell - 1));
+            }
+        }
+        
+        while (chunk.GreenLightAdditionQueue.TryDequeue(out Vector3i globalBlockPosition))
+        {
+            ushort currentCell = world.GreenLightValueAt(globalBlockPosition);
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition - Vector3i.UnitY) && world.GreenLightValueAt(globalBlockPosition - Vector3i.UnitY) + 2 <= currentCell)
+            {
+                world.SetGreenLightValue(globalBlockPosition - Vector3i.UnitY, (ushort) (currentCell - 1));
+                chunk.GreenLightAdditionQueue.Enqueue(globalBlockPosition + Vector3i.UnitY);
+                // world.AddSunlight(globalBlockPosition + Vector3i.UnitY, (ushort) (currentCell - 1));GreenL
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition + Vector3i.UnitY) && world.GreenLightValueAt(globalBlockPosition + Vector3i.UnitY) + 2 <= currentCell)
+            {
+                world.SetGreenLightValue(globalBlockPosition + Vector3i.UnitY, (ushort) (currentCell - 1));
+                chunk.GreenLightAdditionQueue.Enqueue(globalBlockPosition + Vector3i.UnitY);
+                // world.AddSunlight(globalBlockPosition + Vector3i.UnitY, (ushort) (currentCell - 1));
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition + Vector3i.UnitX) && world.GreenLightValueAt(globalBlockPosition + Vector3i.UnitX) + 2 <= currentCell)
+            {
+                world.SetGreenLightValue(globalBlockPosition + Vector3i.UnitX, (ushort) (currentCell - 1));
+                chunk.GreenLightAdditionQueue.Enqueue(globalBlockPosition + Vector3i.UnitX);
+                // world.AddSunlight(globalBlockPosition + Vector3i.UnitX, (ushort) (currentCell - 1));
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition - Vector3i.UnitX) && world.GreenLightValueAt(globalBlockPosition - Vector3i.UnitX) + 2 <= currentCell)
+            {
+                world.SetGreenLightValue(globalBlockPosition - Vector3i.UnitX, (ushort) (currentCell - 1));
+                chunk.GreenLightAdditionQueue.Enqueue(globalBlockPosition - Vector3i.UnitX);
+                // world.AddSunlight(globalBlockPosition - Vector3i.UnitX, (ushort) (currentCell - 1));
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition + Vector3i.UnitZ) && world.GreenLightValueAt(globalBlockPosition + Vector3i.UnitZ) + 2 <= currentCell)
+            {
+                world.SetGreenLightValue(globalBlockPosition + Vector3i.UnitZ, (ushort) (currentCell - 1));
+                chunk.GreenLightAdditionQueue.Enqueue(globalBlockPosition + Vector3i.UnitZ);
+                // world.AddSunlight(globalBlockPosition + Vector3i.UnitZ, (ushort) (currentCell - 1));
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition - Vector3i.UnitZ) && world.GreenLightValueAt(globalBlockPosition - Vector3i.UnitZ) + 2 <= currentCell)
+            {
+                world.SetGreenLightValue(globalBlockPosition - Vector3i.UnitZ, (ushort) (currentCell - 1));
+                chunk.GreenLightAdditionQueue.Enqueue(globalBlockPosition - Vector3i.UnitZ);
+                // world.AddSunlight(globalBlockPosition - Vector3i.UnitZ, (ushort) (currentCell - 1));
+            }
+        }
+        
+        while (chunk.BlueLightAdditionQueue.TryDequeue(out Vector3i globalBlockPosition))
+        {
+            ushort currentCell = world.BlueLightValueAt(globalBlockPosition);
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition - Vector3i.UnitY) && world.BlueLightValueAt(globalBlockPosition - Vector3i.UnitY) + 2 <= currentCell)
+            {
+                world.SetBlueLightValue(globalBlockPosition - Vector3i.UnitY, (ushort) (currentCell - 1));
+                chunk.BlueLightAdditionQueue.Enqueue(globalBlockPosition + Vector3i.UnitY);
+                // world.AddSunlight(globalBlockPosition + Vector3i.UnitY, (ushort) (currentCell - 1));BlueL
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition + Vector3i.UnitY) && world.BlueLightValueAt(globalBlockPosition + Vector3i.UnitY) + 2 <= currentCell)
+            {
+                world.SetBlueLightValue(globalBlockPosition + Vector3i.UnitY, (ushort) (currentCell - 1));
+                chunk.BlueLightAdditionQueue.Enqueue(globalBlockPosition + Vector3i.UnitY);
+                // world.AddSunlight(globalBlockPosition + Vector3i.UnitY, (ushort) (currentCell - 1));
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition + Vector3i.UnitX) && world.BlueLightValueAt(globalBlockPosition + Vector3i.UnitX) + 2 <= currentCell)
+            {
+                world.SetBlueLightValue(globalBlockPosition + Vector3i.UnitX, (ushort) (currentCell - 1));
+                chunk.BlueLightAdditionQueue.Enqueue(globalBlockPosition + Vector3i.UnitX);
+                // world.AddSunlight(globalBlockPosition + Vector3i.UnitX, (ushort) (currentCell - 1));
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition - Vector3i.UnitX) && world.BlueLightValueAt(globalBlockPosition - Vector3i.UnitX) + 2 <= currentCell)
+            {
+                world.SetBlueLightValue(globalBlockPosition - Vector3i.UnitX, (ushort) (currentCell - 1));
+                chunk.BlueLightAdditionQueue.Enqueue(globalBlockPosition - Vector3i.UnitX);
+                // world.AddSunlight(globalBlockPosition - Vector3i.UnitX, (ushort) (currentCell - 1));
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition + Vector3i.UnitZ) && world.BlueLightValueAt(globalBlockPosition + Vector3i.UnitZ) + 2 <= currentCell)
+            {
+                world.SetBlueLightValue(globalBlockPosition + Vector3i.UnitZ, (ushort) (currentCell - 1));
+                chunk.BlueLightAdditionQueue.Enqueue(globalBlockPosition + Vector3i.UnitZ);
+                // world.AddSunlight(globalBlockPosition + Vector3i.UnitZ, (ushort) (currentCell - 1));
+            }
+            
+            if (!world.GetBlockIsSolid(globalBlockPosition - Vector3i.UnitZ) && world.BlueLightValueAt(globalBlockPosition - Vector3i.UnitZ) + 2 <= currentCell)
+            {
+                world.SetBlueLightValue(globalBlockPosition - Vector3i.UnitZ, (ushort) (currentCell - 1));
+                chunk.BlueLightAdditionQueue.Enqueue(globalBlockPosition - Vector3i.UnitZ);
+                // world.AddSunlight(globalBlockPosition - Vector3i.UnitZ, (ushort) (currentCell - 1));
+            }
+        }
     }
 
     float ScaleClampNormalize(float value, float scale)
     {
         return (float.Clamp(value * scale, -1.0f, 1.0f) + 1.0f) * 0.5f;
     }
-
-    void Line(Vector3i from, Vector3i to, Chunk chunk)
-    {
-        Vector3 direction = Vector3.Normalize(to - from);
-
-        for (int i = 0; i < 256; i++) 
-        {
-            Vector3 current = Vector3.Lerp(from, to, i / 256.0f);
-            
-            chunk.SetBlock((Vector3i)current);
-        }
-    }
-
-    float Remap(float a, float v1, float v2)
-    {
-        return (a - v1) * (1.0f / (v2 - v1));
-    }
     
-    public void GenerateMesh(World world, Chunk chunk)
+    private void GenerateMesh(World world, Chunk chunk)
     {
         for (int i = 0; i < Config.ColumnSize; i++)
         {
@@ -318,6 +524,8 @@ public class WorldGenerator
             // if (!mesh.ShouldUpdate) continue;
             // if (!mesh.ShouldUpdate) continue;
             // mesh.ShouldUpdate = false;
+            
+            if (!mesh.ShouldUpdate) continue;
             
             mesh.SolidVertices.Clear();
             mesh.SolidIndices.Clear();
@@ -336,7 +544,7 @@ public class WorldGenerator
                         string id = chunk.GetBlockId((x, y + (i * Config.ChunkSize), z));
                         if (id != "air")
                         {
-                            Register.GetBlockFromId(id).OnBlockMesh(_world, globalBlockPosition);
+                            Register.GetBlockFromId(id).OnBlockMesh(world, globalBlockPosition);
                         }
                     }
                 }
@@ -362,7 +570,8 @@ public class WorldGenerator
         for (int i = 0; i < Config.ColumnSize; i++)
         {
             ChunkSectionMesh mesh = column.ChunkMeshes[i];
-            // if (!mesh.ShouldUpdate) continue;
+            if (!mesh.ShouldUpdate) continue;
+            mesh.ShouldUpdate = false;
             mesh.Update();
         }
         

@@ -12,12 +12,18 @@ public struct ChunkVertex
     public Vector3 Position;
     public Vector3 Normal;
     public Vector2 TextureCoordinate;
+    public Vector4 Tint;
 
     public ChunkVertex(Vector3 position, Vector3 normal, Vector2 textureCoordinate)
     {
         Position = position;
         Normal = normal;
         TextureCoordinate = textureCoordinate;
+    }
+
+    public ChunkVertex(Vector3 position, Vector3 normal, Vector2 textureCoordinate, Vector4 tint) : this(position, normal, textureCoordinate)
+    {
+        Tint = tint;
     }
 }
 public class ChunkSectionMesh
@@ -70,6 +76,8 @@ public class ChunkSectionMesh
         GL.EnableVertexAttribArray(1);
         GL.VertexAttribPointer(2, 2, VertexAttribPointerType.Float, false, Marshal.SizeOf<ChunkVertex>(), Marshal.OffsetOf<ChunkVertex>(nameof(ChunkVertex.TextureCoordinate)));
         GL.EnableVertexAttribArray(2);
+        GL.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, Marshal.SizeOf<ChunkVertex>(), Marshal.OffsetOf<ChunkVertex>(nameof(ChunkVertex.Tint)));
+        GL.EnableVertexAttribArray(3);
 
         SolidVerticesLength = SolidVertices.Count;
         SolidIndicesLength = SolidIndices.Count;
@@ -98,12 +106,13 @@ public class ChunkSectionMesh
         GL.EnableVertexAttribArray(1);
         GL.VertexAttribPointer(2, 2, VertexAttribPointerType.Float, false, Marshal.SizeOf<ChunkVertex>(), Marshal.OffsetOf<ChunkVertex>(nameof(ChunkVertex.TextureCoordinate)));
         GL.EnableVertexAttribArray(2);
+        GL.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, Marshal.SizeOf<ChunkVertex>(), Marshal.OffsetOf<ChunkVertex>(nameof(ChunkVertex.Tint)));
+        GL.EnableVertexAttribArray(3);
 
         TransparentVerticesLength = TransparentVertices.Count;
         TransparentIndicesLength = TransparentIndices.Count;
         
         TransparentVertices.Clear();
         TransparentIndices.Clear();
-        ShouldUpdate = false;
     }
 }
